@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  eduguard-ai:
+    build: .
+    container_name: eduguard-ai-classroom
+    restart: always
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/app/data
+      - ./uploads:/app/uploads
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
