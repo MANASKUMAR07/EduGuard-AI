@@ -81,7 +81,43 @@ class ManagerHub {
       }
     });
 
-    // 2. Global Password Override
+    // 2. Executive Manager Password & Profile Reset
+    document.getElementById('mgrUpdateMasterCredsForm')?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const newName = document.getElementById('mgrSelfName')?.value.trim();
+      const newEmail = document.getElementById('mgrSelfEmail')?.value.trim();
+      const newPassword = document.getElementById('mgrSelfNewPassword')?.value;
+
+      try {
+        const res = await fetch('/api/manager/update-credentials', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ newName, newEmail, newPassword })
+        });
+        const data = await res.json();
+        if (data.success) {
+          window.showToast?.('🛡️ Manager master password & profile updated successfully!', 'success');
+          // Update local session if manager is currently logged in
+          try {
+            const current = JSON.parse(localStorage.getItem('eduguard_user') || '{}');
+            if (current && current.role === 'manager') {
+              if (newName) current.name = newName;
+              if (newEmail) current.email = newEmail;
+              localStorage.setItem('eduguard_user', JSON.stringify(current));
+              const nameEl = document.getElementById('headerUserName');
+              if (nameEl && newName) nameEl.textContent = newName;
+            }
+          } catch(err){}
+          this.loadManagerOverview();
+        } else {
+          window.showToast?.(data.message || 'Failed to update manager credentials.', 'danger');
+        }
+      } catch (err) {
+        window.showToast?.('Error updating manager master credentials.', 'danger');
+      }
+    });
+
+    // 2b. Global Password Override
     document.getElementById('mgrPasswordOverrideForm')?.addEventListener('submit', async (e) => {
       e.preventDefault();
       const targetEmail = document.getElementById('mgrOverrideEmail')?.value.trim();
@@ -97,11 +133,37 @@ class ManagerHub {
         if (data.success) {
           window.showToast?.('Password successfully overridden!', 'success');
           document.getElementById('mgrPasswordOverrideForm').reset();
+          this.loadManagerOverview();
         } else {
           window.showToast?.(data.message || 'Password override failed.', 'danger');
         }
       } catch (e) {
         window.showToast?.('Error overriding password.', 'danger');
+      }
+    });
+
+    // 2c. Quick Reset Password Modal Form
+    document.getElementById('mgrQuickResetModalForm')?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const targetEmail = document.getElementById('modalResetUserEmail')?.value.trim();
+      const newPassword = document.getElementById('modalResetNewPassword')?.value;
+
+      try {
+        const res = await fetch('/api/manager/override-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ targetEmail, newPassword })
+        });
+        const data = await res.json();
+        if (data.success) {
+          window.showToast?.(`🔑 Password updated for "${targetEmail}"!`, 'success');
+          document.getElementById('mgrQuickResetModal')?.classList.remove('active');
+          this.loadManagerOverview();
+        } else {
+          window.showToast?.(data.message || 'Failed to update password.', 'danger');
+        }
+      } catch (err) {
+        window.showToast?.('Error updating password via modal.', 'danger');
       }
     });
 
@@ -238,6 +300,17 @@ class ManagerHub {
         this.updateFilterCounts(usersList);
         this.filterAndRenderUsers();
         
+        // Populate manager self credentials form if present
+        const mgrUser = usersList.find(u => u.role === 'manager');
+        if (mgrUser) {
+          const selfName = document.getElementById('mgrSelfName');
+          const selfEmail = document.getElementById('mgrSelfEmail');
+          const selfPwd = document.getElementById('mgrSelfNewPassword');
+          if (selfName && !selfName.dataset.userEdited) selfName.value = mgrUser.name;
+          if (selfEmail && !selfEmail.dataset.userEdited) selfEmail.value = mgrUser.email;
+          if (selfPwd && !selfPwd.dataset.userEdited && mgrUser.password) selfPwd.value = mgrUser.password;
+        }
+
         const logsList = data.malpracticeIncidents || (data.data && data.data.recentIncidents) || [];
         this.renderLogsTable(logsList);
       }
@@ -311,7 +384,7 @@ class ManagerHub {
     if (users.length === 0) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="6" style="text-align:center; color:var(--text-muted); padding:2rem;">
+          <td colspan="7" style="text-align:center; color:var(--text-muted); padding:2rem;">
             <div style="font-size:2rem; margin-bottom:8px;">🔍</div>
             <p style="font-weight:600; color:#fff;">No accounts match the current filter or search criteria.</p>
             <p style="font-size:0.8rem; margin-top:4px;">Try selecting another role tab or clear your search query.</p>
@@ -340,6 +413,9 @@ class ManagerHub {
         ? '<span style="color:#f59e0b; font-size:0.75rem;" title="Provisioned via Super Admin Bypass">⚡ Bypass Verified</span>'
         : '<span style="color:#10b981; font-size:0.75rem;" title="Email Verified">✓ Verified</span>';
 
+      const userPwd = u.password || 'EduGuard@2026';
+      const safeId = (u.id || '').replace(/[^a-zA-Z0-9]/g, '');
+
       return `
         <tr style="border-bottom:1px solid rgba(255,255,255,0.06); transition:background 0.2s ease;">
           <td style="padding:12px;">
@@ -349,7 +425,7 @@ class ManagerHub {
               </div>
               <div>
                 <strong style="color:#fff; font-size:0.9rem;">${u.name}</strong>
-                <div style="font-family:var(--font-mono); font-size:0.7rem; color:var(--text-dim);">${u.id || 'N/A'}</div>
+                <div style="font-family:var(--font-mono); font-size:0.7rem; color:#38bdf8; font-weight:700;">ID: ${u.id || 'N/A'}</div>
               </div>
             </div>
           </td>
@@ -358,6 +434,25 @@ class ManagerHub {
           </td>
           <td style="padding:12px;">
             <span style="font-family:var(--font-mono); font-size:0.82rem; color:#cbd5e1;">${u.email}</span>
+          </td>
+          <td style="padding:12px;">
+            <div style="display:flex; align-items:center; gap:6px; background:rgba(15,23,42,0.8); border:1px solid rgba(255,255,255,0.1); border-radius:var(--radius-xs); padding:4px 8px; width:fit-content;">
+              <span id="pwdText-${safeId}" style="font-family:var(--font-mono); font-size:0.78rem; color:#a5b4fc; letter-spacing:1px;" data-password="${userPwd}">••••••••</span>
+              <button 
+                type="button" 
+                style="background:none; border:none; color:#94a3b8; cursor:pointer; font-size:0.75rem; padding:0 2px;" 
+                title="Show/Hide password" 
+                onclick="window.managerHub.togglePasswordView('${safeId}')">
+                👁️
+              </button>
+              <button 
+                type="button" 
+                style="background:none; border:none; color:#38bdf8; cursor:pointer; font-size:0.75rem; padding:0 2px;" 
+                title="Copy password" 
+                onclick="window.managerHub.copyPassword('${userPwd}')">
+                📋
+              </button>
+            </div>
           </td>
           <td style="padding:12px; font-size:0.82rem; color:var(--text-muted);">
             ${u.institution || 'Cambridge Academy of Sciences'}
@@ -370,8 +465,8 @@ class ManagerHub {
               <button 
                 class="btn-secondary" 
                 style="padding:5px 10px; font-size:0.75rem; color:#fbbf24; border-color:rgba(245,158,11,0.4);" 
-                title="Override / Reset password for this account"
-                onclick="window.managerHub.quickResetPassword('${u.email}')">
+                title="Reset password for this account"
+                onclick="window.managerHub.openQuickResetModal('${u.id}', '${u.email}')">
                 🔑 Reset Pwd
               </button>
               ${!isManager ? `
@@ -394,6 +489,41 @@ class ManagerHub {
         </tr>
       `;
     }).join('');
+  }
+
+  togglePasswordView(safeId) {
+    const el = document.getElementById(`pwdText-${safeId}`);
+    if (!el) return;
+    const realPwd = el.dataset.password || '';
+    if (el.textContent === '••••••••') {
+      el.textContent = realPwd;
+      el.style.color = '#34d399';
+    } else {
+      el.textContent = '••••••••';
+      el.style.color = '#a5b4fc';
+    }
+  }
+
+  copyPassword(pwd) {
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(pwd);
+      window.showToast?.('📋 Password copied to clipboard!', 'success');
+    }
+  }
+
+  openQuickResetModal(userId, userEmail) {
+    const modal = document.getElementById('mgrQuickResetModal');
+    const idInput = document.getElementById('modalResetUserId');
+    const emailInput = document.getElementById('modalResetUserEmail');
+    const pwdInput = document.getElementById('modalResetNewPassword');
+
+    if (idInput) idInput.value = userId;
+    if (emailInput) emailInput.value = userEmail;
+    if (pwdInput) {
+      pwdInput.value = 'EduGuard@2026';
+      pwdInput.focus();
+    }
+    if (modal) modal.classList.add('active');
   }
 
   renderLogsTable(logs) {
@@ -421,14 +551,7 @@ class ManagerHub {
   }
 
   quickResetPassword(email) {
-    const overrideInput = document.getElementById('mgrOverrideEmail');
-    const pwdInput = document.getElementById('mgrOverrideNewPassword');
-    if (overrideInput) {
-      overrideInput.value = email;
-      overrideInput.focus();
-      overrideInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      window.showToast?.(`Selected account "${email}" for password override.`, 'info');
-    }
+    this.openQuickResetModal('', email);
   }
 
   async deleteUser(userId, userName, userRole) {

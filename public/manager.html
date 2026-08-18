@@ -115,7 +115,8 @@
         </div>
 
         <!-- Management Action Cards Grid (4 Column) -->
-        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:1.25rem;">
+        <!-- Management Action Cards Grid (5 Column / Responsive) -->
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:1.25rem;">
           
           <!-- Card 1: Zero-OTP Bypass Account Registration -->
           <div style="background:var(--bg-glass); border:1px solid rgba(99,102,241,0.25); border-radius:var(--radius-md); padding:1.25rem;">
@@ -136,7 +137,24 @@
             </form>
           </div>
 
-          <!-- Card 2: Global Password Override -->
+          <!-- Card 2: Executive Manager Password Reset -->
+          <div style="background:var(--bg-glass); border:1px solid rgba(239,68,68,0.35); border-radius:var(--radius-md); padding:1.25rem; box-shadow:0 0 15px rgba(239,68,68,0.1);">
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
+              <span style="font-size:1.2rem;">🛡️</span>
+              <h3 style="font-size:1rem; font-weight:700; color:#fff;">Manager Password Reset</h3>
+            </div>
+            <p style="font-size:0.78rem; color:var(--text-muted); margin-bottom:12px;">Update your own Super Administrator master password & credentials.</p>
+            <form id="mgrUpdateMasterCredsForm" style="display:flex; flex-direction:column; gap:10px;">
+              <input type="text" id="mgrSelfName" class="form-input" placeholder="Manager Name" value="Executive Manager" required />
+              <input type="email" id="mgrSelfEmail" class="form-input" placeholder="Manager Email" value="manasku2007@gmail.com" required />
+              <input type="password" id="mgrSelfNewPassword" class="form-input" placeholder="New Master Password (min 8 chars)" value="Manas@2026" required />
+              <button type="submit" class="btn-primary" style="background:linear-gradient(135deg,#ef4444,#dc2626); border-color:#b91c1c; margin-top:auto;">
+                🔒 Save Manager Password
+              </button>
+            </form>
+          </div>
+
+          <!-- Card 3: Global Password Override -->
           <div style="background:var(--bg-glass); border:1px solid rgba(245,158,11,0.25); border-radius:var(--radius-md); padding:1.25rem;">
             <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
               <span style="font-size:1.2rem;">🔑</span>
@@ -152,7 +170,7 @@
             </form>
           </div>
 
-          <!-- Card 3: System Policy Flags -->
+          <!-- Card 4: System Policy Flags -->
           <div style="background:var(--bg-glass); border:1px solid rgba(16,185,129,0.25); border-radius:var(--radius-md); padding:1.25rem;">
             <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
               <span style="font-size:1.2rem;">⚙️</span>
@@ -176,7 +194,7 @@
             </div>
           </div>
 
-          <!-- Card 4: Emergency Live Broadcast -->
+          <!-- Card 5: Emergency Live Broadcast -->
           <div style="background:var(--bg-glass); border:1px solid rgba(239,68,68,0.25); border-radius:var(--radius-md); padding:1.25rem;">
             <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
               <span style="font-size:1.2rem;">📢</span>
@@ -201,7 +219,7 @@
                 <span id="mgrUsersBadgeCount" class="status-pill status-focused" style="font-size:0.75rem;">0 Total</span>
               </div>
               <p style="font-size:0.8rem; color:var(--text-muted); margin-top:2px;">
-                Full directory of verified teachers, students, and administrators with instant permission to provision, audit, or remove accounts.
+                Full directory of verified teachers, students, and administrators with permanent credential storage, password reveal/reset, and auditing.
               </p>
             </div>
             
@@ -236,6 +254,7 @@
                   <th style="padding:10px 12px;">User Profile</th>
                   <th style="padding:10px 12px;">Role</th>
                   <th style="padding:10px 12px;">Institutional Email</th>
+                  <th style="padding:10px 12px;">Password Credentials</th>
                   <th style="padding:10px 12px;">Institution</th>
                   <th style="padding:10px 12px;">Status</th>
                   <th style="padding:10px 12px; text-align:right;">Actions / Permissions</th>
@@ -272,6 +291,33 @@
     </section>
 
   </main>
+
+  <!-- Modal: Quick Reset Password -->
+  <div id="mgrQuickResetModal" class="modal-backdrop">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 class="modal-title">🔑 Reset Account Password</h3>
+        <button class="modal-close-btn" onclick="document.getElementById('mgrQuickResetModal').classList.remove('active')">✕</button>
+      </div>
+      <form id="mgrQuickResetModalForm">
+        <div class="modal-body">
+          <input type="hidden" id="modalResetUserId" />
+          <div class="form-group">
+            <label class="form-label">Target Account Email</label>
+            <input type="text" id="modalResetUserEmail" class="form-input" readonly style="background:rgba(255,255,255,0.05); color:#94a3b8;" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">New Password</label>
+            <input type="text" id="modalResetNewPassword" class="form-input" placeholder="Enter new password (min 8 chars)" value="EduGuard@2026" required />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary" onclick="document.getElementById('mgrQuickResetModal').classList.remove('active')">Cancel</button>
+          <button type="submit" class="btn-primary">💾 Save New Password</button>
+        </div>
+      </form>
+    </div>
+  </div>
 
   <div id="toastContainer" class="toast-container"></div>
 

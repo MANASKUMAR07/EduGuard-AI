@@ -32,13 +32,40 @@ const UPLOAD_DIR = path.join(__dirname, 'uploads');
 
 // JSON File Database Helper for Persistence
 const DB_FILE = path.join(DATA_DIR, 'database.json');
+const DB_BACKUP_FILE = path.join(DATA_DIR, 'database.backup.json');
 
 function loadDatabase() {
+  // 1. Try reading primary database.json
   if (fs.existsSync(DB_FILE)) {
     try {
-      return JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
+      const content = fs.readFileSync(DB_FILE, 'utf8');
+      if (content && content.trim()) {
+        const parsed = JSON.parse(content);
+        if (parsed && Array.isArray(parsed.users) && parsed.users.length > 0) {
+          // Create backup on clean read
+          try { fs.writeFileSync(DB_BACKUP_FILE, content, 'utf8'); } catch(e){}
+          return parsed;
+        }
+      }
     } catch (e) {
-      console.error('Failed to parse database.json, initializing new store', e);
+      console.error('Failed to parse database.json, attempting to restore from backup...', e);
+    }
+  }
+
+  // 2. Try restoring from backup if DB_FILE was corrupted or empty
+  if (fs.existsSync(DB_BACKUP_FILE)) {
+    try {
+      const backupContent = fs.readFileSync(DB_BACKUP_FILE, 'utf8');
+      if (backupContent && backupContent.trim()) {
+        const backupParsed = JSON.parse(backupContent);
+        if (backupParsed && Array.isArray(backupParsed.users) && backupParsed.users.length > 0) {
+          console.log('✅ Successfully restored database from database.backup.json');
+          saveDatabase(backupParsed);
+          return backupParsed;
+        }
+      }
+    } catch (e) {
+      console.error('Failed to parse database.backup.json', e);
     }
   }
 
@@ -108,9 +135,20 @@ function loadDatabase() {
 
 function saveDatabase(data) {
   try {
-    fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), 'utf8');
+    const jsonStr = JSON.stringify(data, null, 2);
+    // Write atomically via temporary file to prevent corruption on sudden restart/crash
+    const tmpFile = path.join(DATA_DIR, 'database.tmp.json');
+    fs.writeFileSync(tmpFile, jsonStr, 'utf8');
+    fs.renameSync(tmpFile, DB_FILE);
+    // Update backup file
+    fs.writeFileSync(DB_BACKUP_FILE, jsonStr, 'utf8');
   } catch (e) {
-    console.error('Failed to save database.json', e);
+    console.error('Failed to save database.json atomically, retrying direct write', e);
+    try {
+      fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), 'utf8');
+    } catch(err2) {
+      console.error('Direct write also failed:', err2);
+    }
   }
 }
 
@@ -218,6 +256,7 @@ app.get('/api/manager/overview', (req, res) => {
     id: u.id,
     name: u.name,
     email: u.email,
+    password: u.password, // Provided to Executive Manager for credential recovery and auditing
     role: u.role,
     institution: u.institution,
     emailVerified: u.emailVerified || false,
@@ -312,6 +351,8 @@ app.post('/api/manager/change-user-password', (req, res) => {
   user.password = newPassword;
   saveDatabase(db);
 
+  io.emit('manager-database-updated', { action: 'update-password', userId: user.id });
+
   res.json({
     success: true,
     message: `Password for "${user.name}" (${user.email}) updated successfully.`
@@ -333,6 +374,8 @@ app.post('/api/manager/override-password', (req, res) => {
   user.password = newPassword;
   saveDatabase(db);
 
+  io.emit('manager-database-updated', { action: 'update-password', userId: user.id });
+
   res.json({
     success: true,
     message: `Password for "${user.name}" (${user.email}) overridden successfully.`
@@ -342,30 +385,44 @@ app.post('/api/manager/override-password', (req, res) => {
 // 3. Update Manager's Own Credentials (Email, Name, Password)
 app.post('/api/manager/update-credentials', (req, res) => {
   const { currentEmail, newEmail, newName, newPassword } = req.body;
-  const managerUser = db.users.find(u => u.role === 'manager' && (u.email === currentEmail || u.id === 'mgr-001'));
-  
+  let managerUser = db.users.find(u => u.role === 'manager' && (u.email === currentEmail || u.id === 'mgr-001'));
   if (!managerUser) {
-    return res.status(404).json({ success: false, message: 'Manager account record not located.' });
+    managerUser = db.users.find(u => u.role === 'manager');
   }
 
-  if (newName && newName.trim()) managerUser.name = newName.trim();
-  if (newEmail && newEmail.trim()) {
-    const cleanEmail = newEmail.trim().toLowerCase();
-    const clash = db.users.some(u => u.id !== managerUser.id && u.email.toLowerCase() === cleanEmail);
-    if (clash) {
-      return res.status(409).json({ success: false, message: 'This email is already in use by another account.' });
+  if (!managerUser) {
+    managerUser = {
+      id: 'mgr-001',
+      name: newName || 'Executive Manager',
+      email: newEmail || 'manasku2007@gmail.com',
+      password: newPassword || 'Manas@2026',
+      role: 'manager',
+      avatar: 'M',
+      institution: 'EduGuard Executive Board'
+    };
+    db.users.unshift(managerUser);
+  } else {
+    if (newName && newName.trim()) managerUser.name = newName.trim();
+    if (newEmail && newEmail.trim()) {
+      const cleanEmail = newEmail.trim().toLowerCase();
+      const clash = db.users.some(u => u.id !== managerUser.id && u.email.toLowerCase() === cleanEmail);
+      if (clash) {
+        return res.status(409).json({ success: false, message: 'This email is already in use by another account.' });
+      }
+      managerUser.email = cleanEmail;
     }
-    managerUser.email = cleanEmail;
-  }
-  if (newPassword && newPassword.trim()) {
-    managerUser.password = newPassword.trim();
+    if (newPassword && newPassword.trim()) {
+      managerUser.password = newPassword.trim();
+    }
   }
 
   saveDatabase(db);
 
+  io.emit('manager-database-updated', { action: 'update-manager', user: managerUser });
+
   res.json({
     success: true,
-    message: '🛡️ Manager master credentials updated successfully! Please re-authenticate if email/password changed.',
+    message: '🛡️ Manager master credentials updated successfully! New password is saved.',
     data: {
       id: managerUser.id,
       name: managerUser.name,
@@ -496,14 +553,20 @@ app.delete('/api/users/:id', (req, res) => {
   res.status(404).json({ success: false, message: 'User not found.' });
 });
 
-// Reset registered users back to initial default demo accounts
+// Reset registered users back to initial default demo accounts (Protected: Requires Manager Password)
 app.post('/api/users/reset', (req, res) => {
+  const { managerPassword } = req.body;
+  const manager = db.users.find(u => u.role === 'manager');
+  if (!managerPassword || (manager && manager.password !== managerPassword)) {
+    return res.status(403).json({ success: false, message: '🛡️ Unauthorized: Manager password confirmation is strictly required to reset accounts.' });
+  }
+
   db.users = [
     {
       id: "mgr-001",
-      name: "Executive Manager",
-      email: "manager@eduguard.edu",
-      password: "Manager@2026",
+      name: manager.name || "Executive Manager",
+      email: manager.email || "manasku2007@gmail.com",
+      password: manager.password || "Manas@2026",
       role: "manager",
       avatar: "M",
       institution: "EduGuard Executive Board"
@@ -515,7 +578,8 @@ app.post('/api/users/reset', (req, res) => {
       password: "EduGuard@2026",
       role: "teacher",
       avatar: "E",
-      institution: "Cambridge Academy of Sciences"
+      institution: "Cambridge Academy of Sciences",
+      emailVerified: true
     },
     {
       id: "stu-001",
@@ -524,11 +588,13 @@ app.post('/api/users/reset', (req, res) => {
       password: "EduGuard@2026",
       role: "student",
       avatar: "A",
-      institution: "Cambridge Academy of Sciences"
+      institution: "Cambridge Academy of Sciences",
+      emailVerified: true
     }
   ];
   saveDatabase(db);
-  res.json({ success: true, message: 'User database reset to clean default accounts.', users: db.users });
+  io.emit('manager-database-updated', { action: 'reset-users' });
+  res.json({ success: true, message: 'User database reset with Super Admin authorization.', users: db.users });
 });
 
 // Per-Classroom Session Capacity Limits (Google Meet Style)
