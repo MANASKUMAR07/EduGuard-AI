@@ -210,6 +210,7 @@ app.get('/api/manager/overview', (req, res) => {
     role: u.role,
     institution: u.institution,
     emailVerified: u.emailVerified || false,
+    bypassedByManager: u.bypassedByManager || false,
     createdAt: u.verifiedAt || null
   }));
 
@@ -274,6 +275,9 @@ app.post('/api/manager/bypass-register', (req, res) => {
 
   db.users.push(newUser);
   saveDatabase(db);
+
+  // Real-time broadcast to manager dashboard
+  io.emit('manager-database-updated', { action: 'register', user: newUser });
 
   res.status(201).json({
     success: true,
@@ -423,6 +427,8 @@ app.delete('/api/manager/users/:id', (req, res) => {
   db.users = db.users.filter(u => u.id !== target.id && u.email.toLowerCase() !== target.email.toLowerCase());
   saveDatabase(db);
   
+  io.emit('manager-database-updated', { action: 'delete', userId: id });
+
   return res.json({ 
     success: true, 
     message: `Account for ${target.name} (${target.email}) was permanently removed.`,

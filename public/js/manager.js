@@ -4,6 +4,7 @@
 
 class ManagerHub {
   constructor() {
+    this.socket = null;
     this.overviewData = null;
     this.allUsers = [];
     this.currentRoleFilter = 'all';
@@ -12,6 +13,17 @@ class ManagerHub {
   }
 
   init() {
+    try {
+      if (typeof io !== 'undefined') {
+        this.socket = io();
+        this.socket.on('manager-database-updated', (data) => {
+          console.log('⚡ Real-time manager database sync received:', data);
+          this.loadManagerOverview();
+        });
+      }
+    } catch (e) {
+      console.warn('Manager socket init error:', e);
+    }
     this.bindEvents();
     this.loadManagerOverview();
   }
@@ -38,7 +50,29 @@ class ManagerHub {
           bypassForm.reset();
           const pwdInput = document.getElementById('mgrNewPassword') || document.getElementById('bypassRegPassword');
           if (pwdInput) pwdInput.value = 'EduGuard@2026';
-          this.loadManagerOverview();
+
+          // Reset filter & search to ensure newly registered account is visible
+          this.currentRoleFilter = 'all';
+          this.searchQuery = '';
+          const searchInput = document.getElementById('mgrSearchUsersInput');
+          if (searchInput) searchInput.value = '';
+
+          document.querySelectorAll('.mgr-filter-btn').forEach(b => {
+            if (b.dataset.filter === 'all') {
+              b.classList.add('active');
+              b.style.background = 'var(--accent-primary)';
+              b.style.color = '#fff';
+            } else {
+              b.classList.remove('active');
+              b.style.background = 'transparent';
+              b.style.color = 'var(--text-muted)';
+            }
+          });
+
+          await this.loadManagerOverview();
+
+          // Smoothly scroll to the directory to see the newly provisioned user
+          document.getElementById('mgrUsersBadgeCount')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         } else {
           window.showToast?.(data.message || 'Bypass registration failed.', 'danger');
         }
