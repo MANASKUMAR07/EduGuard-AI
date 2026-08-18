@@ -142,8 +142,9 @@ document.addEventListener('DOMContentLoaded', () => {
     authRoleTabStudent?.classList.remove('active');
     authRoleTabManager?.classList.remove('active');
     authRoleInput.value = 'teacher';
-    authEmailInput.value = 'teacher@eduguard.edu';
-    authPasswordInput.value = 'EduGuard@2026';
+    authEmailInput.placeholder = 'teacher@eduguard.edu';
+    authEmailInput.value = '';
+    authPasswordInput.value = '';
     if (authClassCodeField) authClassCodeField.style.display = 'none';
     if (authTogglePrompt) authTogglePrompt.style.display = 'flex';
     updateEmailUI();
@@ -155,8 +156,9 @@ document.addEventListener('DOMContentLoaded', () => {
     authRoleTabTeacher?.classList.remove('active');
     authRoleTabManager?.classList.remove('active');
     authRoleInput.value = 'student';
-    authEmailInput.value = 'student@eduguard.edu';
-    authPasswordInput.value = 'EduGuard@2026';
+    authEmailInput.placeholder = 'student@eduguard.edu';
+    authEmailInput.value = '';
+    authPasswordInput.value = '';
     if (authClassCodeField) authClassCodeField.style.display = 'flex';
     if (authTogglePrompt) authTogglePrompt.style.display = 'flex';
     updateEmailUI();
@@ -168,8 +170,9 @@ document.addEventListener('DOMContentLoaded', () => {
     authRoleTabTeacher?.classList.remove('active');
     authRoleTabStudent?.classList.remove('active');
     authRoleInput.value = 'manager';
-    authEmailInput.value = 'manasku2007@gmail.com';
-    authPasswordInput.value = 'Manas@2026';
+    authEmailInput.placeholder = 'Enter manager email';
+    authEmailInput.value = '';
+    authPasswordInput.value = '';
     if (authClassCodeField) authClassCodeField.style.display = 'none';
     if (isRegisterMode) authToggleLink?.click();
     if (authTogglePrompt) authTogglePrompt.style.display = 'none';

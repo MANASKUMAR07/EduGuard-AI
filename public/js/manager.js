@@ -333,14 +333,14 @@ class ManagerHub {
           </td>
           <td style="padding:12px; text-align:right;">
             <div style="display:flex; justify-content:flex-end; align-items:center; gap:8px;">
+              <button 
+                class="btn-secondary" 
+                style="padding:5px 10px; font-size:0.75rem; color:#fbbf24; border-color:rgba(245,158,11,0.4);" 
+                title="Override / Reset password for this account"
+                onclick="window.managerHub.quickResetPassword('${u.email}')">
+                🔑 Reset Pwd
+              </button>
               ${!isManager ? `
-                <button 
-                  class="btn-secondary" 
-                  style="padding:5px 10px; font-size:0.75rem; color:#fbbf24; border-color:rgba(245,158,11,0.4);" 
-                  title="Override password for this user"
-                  onclick="window.managerHub.quickResetPassword('${u.email}')">
-                  🔑 Reset Pwd
-                </button>
                 <button 
                   class="btn-secondary" 
                   style="padding:5px 12px; font-size:0.75rem; font-weight:700; color:#fff; background:rgba(239,68,68,0.2); border:1px solid rgba(239,68,68,0.5); border-radius:var(--radius-xs); cursor:pointer; transition:all 0.2s ease;" 
