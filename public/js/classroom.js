@@ -904,22 +904,90 @@ class ClassroomManager {
     }
   }
 
+  muteAllStudents() {
+    if (this.currentRole !== 'teacher' || !this.socket) return;
+    this.socket.emit('teacher-control-media', {
+      roomId: this.currentRoomId,
+      mediaType: 'audio',
+      state: false
+    });
+    window.showToast?.('🔇 Muted all students in classroom.', 'warning');
+  }
+
+  forceAllStudentCamsOn() {
+    if (this.currentRole !== 'teacher' || !this.socket) return;
+    this.socket.emit('teacher-control-media', {
+      roomId: this.currentRoomId,
+      mediaType: 'video',
+      state: true
+    });
+    window.showToast?.('📹 Requested all student cameras ON.', 'info');
+  }
+
+  showTeacherTopAlert(incident) {
+    const ticker = document.getElementById('globalAlertTicker');
+    const txt = document.getElementById('globalAlertText');
+    if (ticker && txt) {
+      txt.innerHTML = `🚨 <strong>MALPRACTICE ALERT:</strong> ${incident.studentName} - ${incident.violationType} (${incident.details || 'Integrity anomaly detected'})`;
+      ticker.classList.remove('hidden');
+      setTimeout(() => ticker.classList.add('hidden'), 8000);
+    }
+  }
+
+  renderIncidentStream() {
+    const container = document.getElementById('sidebarIncidentsList') || document.getElementById('malpracticeStreamContainer');
+    const badge = document.getElementById('alertCountBadge');
+    if (badge) badge.textContent = this.activeIncidents.length;
+    if (!container) return;
+
+    if (this.activeIncidents.length === 0) {
+      container.innerHTML = `<div style="text-align:center; color:#64748b; padding:1.5rem 0; font-size:0.8rem;">No malpractice incidents logged in this session.</div>`;
+      return;
+    }
+
+    container.innerHTML = this.activeIncidents.map(inc => `
+      <div class="incident-card" style="background:rgba(15,23,42,0.8); border:1px solid rgba(239,68,68,0.3); border-radius:var(--radius-sm); padding:8px 10px; margin-bottom:8px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+          <span style="font-weight:700; color:#fff; font-size:0.82rem;">${inc.studentName || 'Student'}</span>
+          <span style="font-size:0.7rem; color:#94a3b8; font-family:var(--font-mono);">${new Date(inc.timestamp || Date.now()).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'})}</span>
+        </div>
+        <div style="font-size:0.75rem; font-weight:700; color:#fb7185; margin-bottom:2px;">⚠️ ${inc.violationType}</div>
+        <div style="font-size:0.72rem; color:#94a3b8; line-height:1.3;">${inc.details || 'Gaze or window departure detected.'}</div>
+      </div>
+    `).join('');
+  }
+
+  updateStudentStatusInGrid(studentName, violation) {
+    const tiles = document.querySelectorAll('.video-tile');
+    tiles.forEach(tile => {
+      if (tile.textContent && tile.textContent.includes(studentName)) {
+        tile.classList.add('malpractice-active');
+        setTimeout(() => tile.classList.remove('malpractice-active'), 5000);
+      }
+    });
+  }
+
+  initClassroomDOM() {
+    this.setupEventListeners();
+  }
+
   setupEventListeners() {
     // 1. Audio Toggle
     const audioBtn = document.getElementById('ctrlToggleAudioBtn') || document.getElementById('micToggleBtn');
     audioBtn?.addEventListener('click', () => {
-      this.isAudioMuted = !this.isAudioMuted;
+      this.isMuted = !this.isMuted;
+      this.isAudioMuted = this.isMuted;
       if (this.localStream) {
-        this.localStream.getAudioTracks().forEach(t => t.enabled = !this.isAudioMuted);
+        this.localStream.getAudioTracks().forEach(t => t.enabled = !this.isMuted);
       }
-      audioBtn.classList.toggle('btn-danger', this.isAudioMuted);
-      audioBtn.classList.toggle('btn-active', !this.isAudioMuted);
+      audioBtn.classList.toggle('btn-danger', this.isMuted);
+      audioBtn.classList.toggle('btn-active', !this.isMuted);
       const label = document.getElementById('audioBtnLabel');
-      if (label) label.textContent = this.isAudioMuted ? 'Mic Muted' : 'Mic Active';
+      if (label) label.textContent = this.isMuted ? 'Mic Muted' : 'Mic Active';
       if (this.socket) {
-        this.socket.emit('toggle-audio', { muted: this.isAudioMuted });
+        this.socket.emit('toggle-audio', { muted: this.isMuted });
       }
-      window.showToast?.(this.isAudioMuted ? 'Microphone muted' : 'Microphone unmuted', 'info');
+      window.showToast?.(this.isMuted ? 'Microphone muted' : 'Microphone unmuted', 'info');
     });
 
     // 2. Video Toggle
