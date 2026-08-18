@@ -60,12 +60,10 @@ class ClassroomManager {
 
     this.socket.on('connect', () => {
       console.log('Connected to EduGuard signaling socket:', this.socket.id);
-      if (this.isAuthenticated && this.currentRole) {
-        if (this.currentRole === 'teacher') {
-          this.joinRoom(this.currentRoomId);
-        } else if (this.currentRole === 'student') {
-          this.requestStudentJoin(this.currentRoomId);
-        }
+      if (this.currentRole === 'teacher') {
+        this.joinRoom(this.currentRoomId);
+      } else if (this.currentRole === 'student') {
+        this.requestStudentJoin(this.currentRoomId);
       }
     });
 
@@ -231,19 +229,32 @@ class ClassroomManager {
   requestStudentJoin(roomId) {
     const room = (roomId || this.currentRoomId || 'CLASS-101').toUpperCase();
     this.currentRoomId = room;
-    if (this.socket && this.socket.connected) {
-      this.socket.emit('student-request-join', {
+    if (!this.socket) return;
+
+    const emitKnock = () => {
+      console.log('🚪 Emitting student admission knock for room:', room);
+      const payload = {
         roomId: room,
         name: this.currentUser.name || 'Alex Johnson',
         studentId: this.currentUser.id || 'stu-001',
         email: this.currentUser.email || 'student@eduguard.edu'
-      });
+      };
+      this.socket.emit('student-request-join', payload);
+      this.socket.emit('request-student-admission', payload);
+    };
+
+    if (this.socket.connected) {
+      emitKnock();
+    } else {
+      this.socket.once('connect', emitKnock);
     }
   }
 
   handleStudentAdmissionKnock(reqData) {
     if (this.currentRole !== 'teacher') return;
     if (this.proctor) this.proctor.playAlarmSound('info');
+
+    window.showToast?.(`🚪 Student Knock: ${reqData.name || 'Student'} is requesting to enter the classroom!`, 'info');
 
     let tray = document.getElementById('admissionRequestsTray') || document.getElementById('teacherAdmissionTray');
     if (!tray) {
@@ -261,17 +272,17 @@ class ClassroomManager {
     card.className = 'admission-knock-card';
     card.innerHTML = `
       <div style="display:flex; align-items:center; gap:10px;">
-        <div class="user-avatar" style="width:34px; height:34px; font-size:0.9rem;">${(reqData.name || 'S').charAt(0).toUpperCase()}</div>
-        <div>
-          <strong style="font-size:0.85rem; color:#fff;">${reqData.name}</strong><br>
-          <span style="font-size:0.72rem; color:#94a3b8;">Knocking to join (${new Date(reqData.timestamp || Date.now()).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})})</span>
+        <div class="user-avatar" style="width:34px; height:34px; font-size:0.9rem; background:linear-gradient(135deg,#3b82f6,#8b5cf6);">${(reqData.name || 'S').charAt(0).toUpperCase()}</div>
+        <div style="flex:1;">
+          <strong style="font-size:0.88rem; color:#fff; display:block;">${reqData.name}</strong>
+          <span style="font-size:0.72rem; color:#94a3b8;">${reqData.email || 'Candidate'} • ${new Date(reqData.timestamp || Date.now()).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
         </div>
       </div>
-      <div style="display:flex; gap:6px; margin-top:8px;">
-        <button class="btn-primary" style="padding:6px 12px; font-size:0.75rem; flex:1; justify-content:center;" onclick="window.classroom.decideAdmission('${reqData.socketId}', true, '${cardId}')">
+      <div style="display:flex; gap:8px; margin-top:10px;">
+        <button class="btn-primary" style="padding:6px 12px; font-size:0.78rem; flex:1; justify-content:center; background:#10b981; border-color:#059669;" onclick="window.classroom.decideAdmission('${reqData.socketId}', true, '${cardId}')">
           ✅ Admit
         </button>
-        <button class="btn-secondary" style="padding:6px 12px; font-size:0.75rem; flex:1; justify-content:center; border-color:rgba(239,68,68,0.4); color:#fca5a5;" onclick="window.classroom.decideAdmission('${reqData.socketId}', false, '${cardId}')">
+        <button class="btn-secondary" style="padding:6px 12px; font-size:0.78rem; flex:1; justify-content:center; border-color:rgba(239,68,68,0.4); color:#fca5a5;" onclick="window.classroom.decideAdmission('${reqData.socketId}', false, '${cardId}')">
           ❌ Deny
         </button>
       </div>
@@ -288,18 +299,6 @@ class ClassroomManager {
     });
     document.getElementById(cardId)?.remove();
     window.showToast?.(approved ? 'Student admitted to classroom.' : 'Admission declined.', approved ? 'success' : 'warning');
-  }
-
-  requestStudentJoin(roomId) {
-    if (!this.socket) return;
-    const room = (roomId || this.currentRoomId || 'CLASS-101').toUpperCase();
-    this.currentRoomId = room;
-    this.socket.emit('request-student-admission', {
-      roomId: room,
-      name: this.currentUser.name || 'Student',
-      studentId: this.currentUser.id || 'stu-001',
-      email: this.currentUser.email || 'student@eduguard.edu'
-    });
   }
 
   async handleStudentAdmissionSuccess(data) {

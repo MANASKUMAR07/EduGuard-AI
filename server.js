@@ -1171,11 +1171,13 @@ const pendingAdmissions = {}; // roomId -> [ { socketId, name, studentId, timest
 
 io.on('connection', (socket) => {
   // 1. Student Knocks / Requests to Join with Class Code
-  socket.on('student-request-join', ({ roomId, name, studentId, email }) => {
-    const room = (roomId || 'CLASS-101').toUpperCase();
+  const handleStudentKnock = ({ roomId, name, studentId, email }) => {
+    const room = (roomId || socket.requestedRoom || 'CLASS-101').toUpperCase();
     socket.requestedRoom = room;
     socket.userName = name || 'Student';
     socket.studentId = studentId || `stu-${socket.id.slice(0, 5)}`;
+    socket.userEmail = email || 'student@eduguard.edu';
+
     // Room Capacity Guard for Students Knocking
     const currentStudentsInRoom = (activeRoomParticipants[room] || []).filter(p => p.role === 'student').length;
     if (currentStudentsInRoom >= MAX_CLASS_STUDENTS) {
@@ -1194,14 +1196,26 @@ io.on('connection', (socket) => {
       name: socket.userName,
       studentId: socket.studentId,
       email: socket.userEmail,
+      roomId: room,
       timestamp: new Date().toISOString()
     };
     pendingAdmissions[room].push(reqData);
 
-    // Notify teachers in that room
+    console.log(`🔔 Admission Knock Received: ${reqData.name} (${reqData.socketId}) -> Room ${room}`);
+
+    // Notify room and direct to all active teachers
     io.to(room).emit('admission-request-received', reqData);
+    for (const [sId, s] of io.sockets.sockets) {
+      if (s.userRole === 'teacher' && (!s.roomId || s.roomId === room)) {
+        s.emit('admission-request-received', reqData);
+      }
+    }
+
     socket.emit('waiting-for-teacher-approval', { roomId: room });
-  });
+  };
+
+  socket.on('student-request-join', handleStudentKnock);
+  socket.on('request-student-admission', handleStudentKnock);
 
   // 2. Teacher Decides (Accept or Deny Student Knock)
   socket.on('teacher-decision-join', ({ targetSocketId, roomId, approved }) => {
@@ -1219,8 +1233,10 @@ io.on('connection', (socket) => {
           message: `Classroom Full: Maximum capacity of ${MAX_CLASS_STUDENTS} students reached for room ${room}.`
         });
       }
+      console.log(`✅ Teacher approved student admission: ${targetSocketId} into room ${room}`);
       io.to(targetSocketId).emit('admission-approved', { roomId: room });
     } else {
+      console.log(`❌ Teacher denied student admission: ${targetSocketId} for room ${room}`);
       io.to(targetSocketId).emit('admission-rejected', {
         roomId: room,
         message: 'The teacher declined your admission request for this session.'
