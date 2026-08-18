@@ -2,7 +2,7 @@
  * EduGuard AI - Executive Manager Portal Bootstrap Controller
  */
 document.addEventListener('DOMContentLoaded', () => {
-  // Session Init
+  // Strict Manager Session Verification
   let user = null;
   try {
     const raw = localStorage.getItem('eduguard_user');
@@ -10,13 +10,10 @@ document.addEventListener('DOMContentLoaded', () => {
   } catch (e) {}
 
   if (!user || user.role !== 'manager') {
-    user = {
-      name: 'Executive Manager',
-      email: 'manasku2007@gmail.com',
-      role: 'manager',
-      id: 'mgr-001'
-    };
-    localStorage.setItem('eduguard_user', JSON.stringify(user));
+    alert('🛡️ Access Denied: Executive Manager authentication required.\n\nPlease log in with your Manager credentials.');
+    localStorage.removeItem('eduguard_user');
+    window.location.href = '/index.html';
+    return;
   }
 
   // Load Manager Overview
@@ -30,5 +27,5 @@ document.addEventListener('DOMContentLoaded', () => {
     window.location.href = '/index.html';
   });
 
-  window.showToast?.('Authenticated to Super Administrator Master Control Suite.', 'success');
+  window.showToast?.(`Welcome Super Administrator, ${user.name}!`, 'success');
 });

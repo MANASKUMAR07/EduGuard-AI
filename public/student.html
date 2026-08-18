@@ -56,7 +56,6 @@
       <div class="role-switch-pills">
         <button class="role-pill-btn" onclick="window.location.href='/teacher.html'">👩‍🏫 Teacher</button>
         <button class="role-pill-btn active" onclick="window.location.href='/student.html'">👨‍🎓 Student</button>
-        <button class="role-pill-btn" onclick="window.location.href='/manager.html'">🛡️ Manager</button>
       </div>
 
       <div class="user-profile-badge">
@@ -137,10 +136,33 @@
             <!-- Collaborative Whiteboard -->
             <div id="whiteboardContainer" class="whiteboard-view">
               <div class="whiteboard-toolbar">
-                <input type="color" id="wbColorPicker" class="wb-color-picker" value="#38bdf8" title="Pen Color" />
-                <button id="wbPenBtn" class="wb-tool-btn active">✏️ Draw</button>
-                <button id="wbEraserBtn" class="wb-tool-btn">🧹 Eraser</button>
-                <span style="font-size:0.75rem; color:var(--text-muted); margin-left:auto;">Interactive Whiteboard</span>
+                <!-- Color Palette -->
+                <div class="wb-color-palette" style="display:flex; align-items:center; gap:5px;">
+                  <button type="button" class="wb-color-dot active" data-color="#38bdf8" style="background:#38bdf8;" title="Cyan / Blue"></button>
+                  <button type="button" class="wb-color-dot" data-color="#10b981" style="background:#10b981;" title="Emerald Green"></button>
+                  <button type="button" class="wb-color-dot" data-color="#f43f5e" style="background:#f43f5e;" title="Rose Red"></button>
+                  <button type="button" class="wb-color-dot" data-color="#fbbf24" style="background:#fbbf24;" title="Amber Yellow"></button>
+                  <button type="button" class="wb-color-dot" data-color="#a855f7" style="background:#a855f7;" title="Purple"></button>
+                  <button type="button" class="wb-color-dot" data-color="#ffffff" style="background:#ffffff;" title="White"></button>
+                  <input type="color" id="wbColorPicker" class="wb-color-picker" value="#38bdf8" title="Custom Hex Color" />
+                </div>
+
+                <div style="height:20px; width:1px; background:var(--border-subtle); margin:0 4px;"></div>
+
+                <!-- Tools & Stroke Thickness -->
+                <div style="display:flex; align-items:center; gap:5px;">
+                  <button id="wbPenBtn" class="wb-tool-btn active" title="Pen Drawing Tool">✏️ Pen</button>
+                  <button id="wbEraserBtn" class="wb-tool-btn" title="Stroke / Precision Eraser">🧹 Eraser</button>
+                  <select id="wbStrokeSizeSelect" class="form-select" style="padding:4px 8px; font-size:0.75rem; width:auto; border-radius:var(--radius-xs);" title="Pen & Eraser Thickness">
+                    <option value="2">Fine (2px)</option>
+                    <option value="4" selected>Normal (4px)</option>
+                    <option value="8">Thick (8px)</option>
+                    <option value="16">Marker (16px)</option>
+                    <option value="32">Broad (32px)</option>
+                  </select>
+                </div>
+
+                <button id="wbClearBtn" class="wb-tool-btn" style="color:#fb7185; margin-left:auto;" title="Clear entire whiteboard canvas">🗑️ Clear Canvas</button>
               </div>
               <canvas id="whiteboardCanvas"></canvas>
             </div>

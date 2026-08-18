@@ -290,6 +290,46 @@ class ClassroomManager {
     window.showToast?.(approved ? 'Student admitted to classroom.' : 'Admission declined.', approved ? 'success' : 'warning');
   }
 
+  requestStudentJoin(roomId) {
+    if (!this.socket) return;
+    const room = (roomId || this.currentRoomId || 'CLASS-101').toUpperCase();
+    this.currentRoomId = room;
+    this.socket.emit('request-student-admission', {
+      roomId: room,
+      name: this.currentUser.name || 'Student',
+      studentId: this.currentUser.id || 'stu-001',
+      email: this.currentUser.email || 'student@eduguard.edu'
+    });
+  }
+
+  async handleStudentAdmissionSuccess(data) {
+    console.log('✅ Student admission approved by host:', data);
+    const room = (data?.roomId || this.currentRoomId || 'CLASS-101').toUpperCase();
+    this.currentRoomId = room;
+
+    // Immediately dismiss the waiting lobby modal
+    this.showWaitingLobbyScreen(false);
+
+    window.showToast?.('🎉 Host admitted you to the proctored classroom!', 'success');
+
+    // Join room signaling mesh
+    this.joinRoom(room);
+
+    // Start local camera and AI proctoring
+    try {
+      await this.startCamera('localVideoFeed');
+    } catch (err) {
+      console.warn('Camera start on admission error:', err);
+    }
+  }
+
+  handleStudentAdmissionDenied(data) {
+    this.showWaitingLobbyScreen(false);
+    alert(`❌ Admission Declined:\n\n${data?.message || 'The teacher declined your admission request for this session.'}`);
+    window.showToast?.('Admission request was declined by teacher.', 'danger');
+    window.location.href = '/student.html';
+  }
+
   showWaitingLobbyScreen(show, roomId) {
     let lobby = document.getElementById('studentWaitingLobby');
     if (show) {
@@ -976,7 +1016,11 @@ class ClassroomManager {
       if (!this.isDrawing) return;
       const pos = getPos(e);
 
-      this.drawLocalLine(this.lastX, this.lastY, pos.x, pos.y, this.brushColor, this.brushSize);
+      const isEraser = this.currentTool === 'eraser';
+      const drawColor = this.brushColor || '#6366f1';
+      const drawSize = this.brushSize || 4;
+
+      this.drawLocalLine(this.lastX, this.lastY, pos.x, pos.y, drawColor, drawSize, isEraser);
 
       if (this.socket) {
         this.socket.emit('whiteboard-draw', {
@@ -985,8 +1029,9 @@ class ClassroomManager {
           y0: this.lastY,
           x1: pos.x,
           y1: pos.y,
-          color: this.brushColor,
-          size: this.brushSize
+          color: drawColor,
+          size: drawSize,
+          isEraser
         });
       }
 
@@ -996,26 +1041,49 @@ class ClassroomManager {
 
     window.addEventListener('mouseup', () => this.isDrawing = false);
 
+    // Color Swatches Palette
+    document.querySelectorAll('.wb-color-dot').forEach(dot => {
+      dot.addEventListener('click', () => {
+        document.querySelectorAll('.wb-color-dot').forEach(d => d.classList.remove('active'));
+        dot.classList.add('active');
+        this.brushColor = dot.dataset.color || '#6366f1';
+        this.currentTool = 'pen';
+        document.getElementById('wbPenBtn')?.classList.add('active');
+        document.getElementById('wbEraserBtn')?.classList.remove('active');
+      });
+    });
+
+    // Custom Color Picker
     document.getElementById('wbColorPicker')?.addEventListener('input', (e) => {
       this.brushColor = e.target.value;
-    });
-
-    document.getElementById('wbClearBtn')?.addEventListener('click', () => {
-      this.clearWhiteboardCanvas(true);
-    });
-
-    document.getElementById('wbPenBtn')?.addEventListener('click', () => {
-      this.brushSize = 3;
-      this.brushColor = document.getElementById('wbColorPicker')?.value || '#6366f1';
+      this.currentTool = 'pen';
+      document.querySelectorAll('.wb-color-dot').forEach(d => d.classList.remove('active'));
       document.getElementById('wbPenBtn')?.classList.add('active');
       document.getElementById('wbEraserBtn')?.classList.remove('active');
     });
 
+    // Pen Tool Button
+    document.getElementById('wbPenBtn')?.addEventListener('click', () => {
+      this.currentTool = 'pen';
+      document.getElementById('wbPenBtn')?.classList.add('active');
+      document.getElementById('wbEraserBtn')?.classList.remove('active');
+    });
+
+    // Stroke / Precision Eraser Button
     document.getElementById('wbEraserBtn')?.addEventListener('click', () => {
-      this.brushSize = 20;
-      this.brushColor = '#0f172a';
+      this.currentTool = 'eraser';
       document.getElementById('wbEraserBtn')?.classList.add('active');
       document.getElementById('wbPenBtn')?.classList.remove('active');
+    });
+
+    // Stroke Thickness Selector
+    document.getElementById('wbStrokeSizeSelect')?.addEventListener('change', (e) => {
+      this.brushSize = parseInt(e.target.value, 10) || 4;
+    });
+
+    // Clear All Canvas
+    document.getElementById('wbClearBtn')?.addEventListener('click', () => {
+      this.clearWhiteboardCanvas(true);
     });
   }
 
@@ -1027,21 +1095,32 @@ class ClassroomManager {
     }
   }
 
-  drawLocalLine(x0, y0, x1, y1, color, size) {
+  drawLocalLine(x0, y0, x1, y1, color, size, isEraser = false) {
     const canvas = document.getElementById('whiteboardCanvas');
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
+    ctx.save();
     ctx.beginPath();
     ctx.moveTo(x0, y0);
     ctx.lineTo(x1, y1);
-    ctx.strokeStyle = color;
-    ctx.lineWidth = size;
+    ctx.lineWidth = isEraser ? (size * 3 || 18) : (size || 4);
     ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    if (isEraser) {
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.strokeStyle = 'rgba(0,0,0,1)';
+    } else {
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.strokeStyle = color || '#6366f1';
+    }
+
     ctx.stroke();
+    ctx.restore();
   }
 
   drawRemoteLine(data) {
-    this.drawLocalLine(data.x0, data.y0, data.x1, data.y1, data.color, data.size);
+    this.drawLocalLine(data.x0, data.y0, data.x1, data.y1, data.color, data.size, data.isEraser);
   }
 
   clearWhiteboardCanvas(emit = true) {
