@@ -45,13 +45,23 @@ function loadDatabase() {
   const initialDB = {
     users: [
       {
+        id: 'mgr-001',
+        name: 'Executive Manager',
+        email: 'manasku2007@gmail.com',
+        password: 'Manas@2026',
+        role: 'manager',
+        avatar: 'M',
+        institution: 'EduGuard Executive Board'
+      },
+      {
         id: 't-001',
         name: 'Dr. Evelyn Reed',
         email: 'teacher@eduguard.edu',
         password: 'EduGuard@2026',
         role: 'teacher',
         avatar: 'E',
-        institution: 'Cambridge Academy of Sciences'
+        institution: 'Cambridge Academy of Sciences',
+        emailVerified: true
       },
       {
         id: 'stu-001',
@@ -60,7 +70,8 @@ function loadDatabase() {
         password: 'EduGuard@2026',
         role: 'student',
         avatar: 'A',
-        institution: 'Cambridge Academy of Sciences'
+        institution: 'Cambridge Academy of Sciences',
+        emailVerified: true
       }
     ],
     rooms: {
