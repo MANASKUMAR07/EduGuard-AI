@@ -33,8 +33,11 @@ const UPLOAD_DIR = path.join(__dirname, 'uploads');
 // JSON File Database Helper for Persistence
 const DB_FILE = path.join(DATA_DIR, 'database.json');
 const DB_BACKUP_FILE = path.join(DATA_DIR, 'database.backup.json');
+const USERS_BACKUP_FILE = path.join(DATA_DIR, 'users.backup.json');
 
 function loadDatabase() {
+  let loadedDB = null;
+
   // 1. Try reading primary database.json
   if (fs.existsSync(DB_FILE)) {
     try {
@@ -42,9 +45,7 @@ function loadDatabase() {
       if (content && content.trim()) {
         const parsed = JSON.parse(content);
         if (parsed && Array.isArray(parsed.users) && parsed.users.length > 0) {
-          // Create backup on clean read
-          try { fs.writeFileSync(DB_BACKUP_FILE, content, 'utf8'); } catch(e){}
-          return parsed;
+          loadedDB = parsed;
         }
       }
     } catch (e) {
@@ -53,20 +54,52 @@ function loadDatabase() {
   }
 
   // 2. Try restoring from backup if DB_FILE was corrupted or empty
-  if (fs.existsSync(DB_BACKUP_FILE)) {
+  if (!loadedDB && fs.existsSync(DB_BACKUP_FILE)) {
     try {
       const backupContent = fs.readFileSync(DB_BACKUP_FILE, 'utf8');
       if (backupContent && backupContent.trim()) {
         const backupParsed = JSON.parse(backupContent);
         if (backupParsed && Array.isArray(backupParsed.users) && backupParsed.users.length > 0) {
           console.log('✅ Successfully restored database from database.backup.json');
-          saveDatabase(backupParsed);
-          return backupParsed;
+          loadedDB = backupParsed;
         }
       }
     } catch (e) {
       console.error('Failed to parse database.backup.json', e);
     }
+  }
+
+  // 3. Merge with dedicated users backup if available
+  let backupUsers = [];
+  if (fs.existsSync(USERS_BACKUP_FILE)) {
+    try {
+      const rawUsers = fs.readFileSync(USERS_BACKUP_FILE, 'utf8');
+      if (rawUsers && rawUsers.trim()) {
+        const parsedUsers = JSON.parse(rawUsers);
+        if (Array.isArray(parsedUsers)) backupUsers = parsedUsers;
+      }
+    } catch (e){}
+  }
+
+  if (loadedDB) {
+    // Ensure all backup users are merged into loadedDB without duplicates
+    if (backupUsers.length > 0) {
+      const userMap = new Map();
+      loadedDB.users.forEach(u => userMap.set(u.id || u.email.toLowerCase(), u));
+      backupUsers.forEach(u => {
+        const key = u.id || u.email.toLowerCase();
+        if (!userMap.has(key)) {
+          userMap.set(key, u);
+        }
+      });
+      loadedDB.users = Array.from(userMap.values());
+    }
+    // Prune excessive base64 incident logs on load to keep database lean
+    if (loadedDB.malpracticeIncidents && loadedDB.malpracticeIncidents.length > 40) {
+      loadedDB.malpracticeIncidents = loadedDB.malpracticeIncidents.slice(0, 40);
+    }
+    saveDatabase(loadedDB);
+    return loadedDB;
   }
 
   const initialDB = {
@@ -129,19 +162,39 @@ function loadDatabase() {
     reports: []
   };
 
+  // Merge any existing backup users
+  if (backupUsers.length > 0) {
+    const userMap = new Map();
+    initialDB.users.forEach(u => userMap.set(u.id || u.email.toLowerCase(), u));
+    backupUsers.forEach(u => {
+      const key = u.id || u.email.toLowerCase();
+      if (!userMap.has(key)) userMap.set(key, u);
+    });
+    initialDB.users = Array.from(userMap.values());
+  }
+
   saveDatabase(initialDB);
   return initialDB;
 }
 
 function saveDatabase(data) {
   try {
+    // Keep incidents list capped to 40 so database.json remains ultra-fast and lightweight
+    if (data.malpracticeIncidents && data.malpracticeIncidents.length > 40) {
+      data.malpracticeIncidents = data.malpracticeIncidents.slice(0, 40);
+    }
+
     const jsonStr = JSON.stringify(data, null, 2);
     // Write atomically via temporary file to prevent corruption on sudden restart/crash
     const tmpFile = path.join(DATA_DIR, 'database.tmp.json');
     fs.writeFileSync(tmpFile, jsonStr, 'utf8');
     fs.renameSync(tmpFile, DB_FILE);
-    // Update backup file
-    fs.writeFileSync(DB_BACKUP_FILE, jsonStr, 'utf8');
+
+    // Update backup files
+    try { fs.writeFileSync(DB_BACKUP_FILE, jsonStr, 'utf8'); } catch(e){}
+    if (data.users && Array.isArray(data.users)) {
+      try { fs.writeFileSync(USERS_BACKUP_FILE, JSON.stringify(data.users, null, 2), 'utf8'); } catch(e){}
+    }
   } catch (e) {
     console.error('Failed to save database.json atomically, retrying direct write', e);
     try {
@@ -703,6 +756,8 @@ app.post('/api/auth/verify-otp-register', (req, res) => {
   db.users.push(newUser);
   saveDatabase(db);
 
+  io.emit('manager-database-updated', { action: 'register', user: newUser });
+
   const registeredUserObj = {
     id: newUser.id,
     name: newUser.name,
@@ -758,6 +813,8 @@ app.post('/api/auth/register', (req, res) => {
 
   db.users.push(newUser);
   saveDatabase(db);
+
+  io.emit('manager-database-updated', { action: 'register', user: newUser });
 
   const directUserObj = {
     id: newUser.id,
