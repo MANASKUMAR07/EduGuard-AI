@@ -133,7 +133,12 @@
               <div id="remoteVideosWrapper" style="display:contents;"></div>
             </div>
 
-            <!-- Collaborative Whiteboard -->
+            <!-- Floating Unpin Button for Spotlight Stage -->
+            <button id="floatingUnpinBtn" class="floating-unpin-btn" onclick="window.classroom.unpinCurrentStage()" style="display:none;" title="Exit Spotlight and Restore Multi-Camera Grid View">
+              <span>✖️</span> <span>Unpin Screen (Exit Spotlight)</span>
+            </button>
+
+            <!-- Collaborative Infinite Scroll Whiteboard -->
             <div id="whiteboardContainer" class="whiteboard-view">
               <div class="whiteboard-toolbar">
                 <!-- Color Palette -->
@@ -162,9 +167,23 @@
                   </select>
                 </div>
 
+                <div style="height:20px; width:1px; background:var(--border-subtle); margin:0 4px;"></div>
+
+                <!-- Infinite Scroll & Extend Navigation -->
+                <div style="display:flex; align-items:center; gap:5px;">
+                  <button id="wbScrollTopBtn" class="wb-tool-btn" onclick="window.classroom.scrollWhiteboardTop()" title="Scroll to Top of Whiteboard Notes">⬆️ Top</button>
+                  <button id="wbScrollBottomBtn" class="wb-tool-btn" onclick="window.classroom.scrollWhiteboardBottom()" title="Scroll to Bottom of Whiteboard Notes">⬇️ Bottom</button>
+                  <button id="wbExtendBtn" class="wb-tool-btn" onclick="window.classroom.extendWhiteboardHeight(1200)" title="Extend Canvas Height Downwards for More Space">➕ Extend Height</button>
+                  <button id="wbPinBtn" class="wb-tool-btn" style="color:#a5b4fc; border-color:rgba(165,180,252,0.3);" onclick="window.classroom.togglePinWhiteboard()" title="Pin Whiteboard to Full Stage">📌 Spotlight</button>
+                </div>
+
                 <button id="wbClearBtn" class="wb-tool-btn" style="color:#fb7185; margin-left:auto;" title="Clear entire whiteboard canvas">🗑️ Clear Canvas</button>
               </div>
-              <canvas id="whiteboardCanvas"></canvas>
+              
+              <!-- Scrollable Canvas Area (Sliding to bottom with continuous notes) -->
+              <div id="whiteboardScrollArea" class="whiteboard-scroll-area">
+                <canvas id="whiteboardCanvas"></canvas>
+              </div>
             </div>
           </div>
 

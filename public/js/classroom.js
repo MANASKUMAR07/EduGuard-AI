@@ -796,30 +796,86 @@ class ClassroomManager {
     const tileId = targetId === 'local' ? 'localVideoTile' : `tile-${targetId}`;
     const targetTile = document.getElementById(tileId);
     const pinBtn = document.getElementById(`pinBtn-${targetId}`);
+    const floatingUnpin = document.getElementById('floatingUnpinBtn');
 
     if (this.pinnedTileId === targetId) {
       // Already pinned -> Unpin back to grid
-      this.pinnedTileId = null;
-      grid.classList.remove('pinned-active');
-      document.querySelectorAll('.video-tile').forEach(t => t.classList.remove('is-pinned', 'is-thumbnail'));
-      document.querySelectorAll('.pin-tile-btn').forEach(btn => btn.innerHTML = '📌 Pin');
-      window.showToast?.('Restored standard multi-video grid view.', 'info');
+      this.unpinCurrentStage();
     } else {
       // Pin this specific video / screen share
       this.pinnedTileId = targetId;
       grid.classList.add('pinned-active');
-      document.querySelectorAll('.video-tile').forEach(t => {
+
+      const allTiles = Array.from(document.querySelectorAll('.video-tile'));
+      let assignedPip = false;
+
+      allTiles.forEach(t => {
         if (t.id === tileId) {
           t.classList.add('is-pinned');
-          t.classList.remove('is-thumbnail');
+          t.classList.remove('is-pip-camera', 'is-thumbnail');
         } else {
           t.classList.remove('is-pinned');
-          t.classList.add('is-thumbnail');
+          // Designate the other active camera tile as floating PiP in bottom-right corner
+          if (!assignedPip) {
+            t.classList.add('is-pip-camera');
+            t.classList.remove('is-thumbnail');
+            assignedPip = true;
+          } else {
+            t.classList.remove('is-pip-camera');
+            t.classList.add('is-thumbnail');
+          }
         }
       });
+
       document.querySelectorAll('.pin-tile-btn').forEach(btn => btn.innerHTML = '📌 Pin');
       if (pinBtn) pinBtn.innerHTML = '✖️ Unpin';
-      window.showToast?.('📌 Pinned screen share to full stage view.', 'success');
+      if (floatingUnpin) floatingUnpin.style.display = 'inline-flex';
+      window.showToast?.('📌 Spotlight active: Full screen stage with bottom-right camera view.', 'success');
+    }
+  }
+
+  unpinCurrentStage() {
+    const grid = document.getElementById('videoGridContainer') || document.getElementById('classroomVideoGrid');
+    const floatingUnpin = document.getElementById('floatingUnpinBtn');
+    this.pinnedTileId = null;
+
+    if (grid) {
+      grid.classList.remove('pinned-active');
+    }
+    document.querySelectorAll('.video-tile').forEach(t => {
+      t.classList.remove('is-pinned', 'is-pip-camera', 'is-thumbnail');
+    });
+    document.querySelectorAll('.pin-tile-btn').forEach(btn => btn.innerHTML = '📌 Pin');
+    if (floatingUnpin) floatingUnpin.style.display = 'none';
+
+    // If whiteboard was pinned, reset whiteboard pin button
+    const wbPinBtn = document.getElementById('wbPinBtn');
+    if (wbPinBtn) {
+      wbPinBtn.innerHTML = '📌 Spotlight';
+      wbPinBtn.classList.remove('active');
+    }
+
+    window.showToast?.('Restored standard multi-video grid view.', 'info');
+  }
+
+  togglePinWhiteboard() {
+    const wbContainer = document.getElementById('whiteboardContainer') || document.getElementById('classroomWhiteboardStage');
+    const videoGrid = document.getElementById('videoGridContainer') || document.getElementById('classroomVideoGrid');
+    const floatingUnpin = document.getElementById('floatingUnpinBtn');
+    const wbPinBtn = document.getElementById('wbPinBtn');
+
+    if (this.pinnedTileId === 'whiteboard') {
+      this.unpinCurrentStage();
+    } else {
+      this.pinnedTileId = 'whiteboard';
+      // Switch to whiteboard view
+      document.getElementById('modeWhiteboardBtn')?.click();
+      if (floatingUnpin) floatingUnpin.style.display = 'inline-flex';
+      if (wbPinBtn) {
+        wbPinBtn.innerHTML = '✖️ Unpin';
+        wbPinBtn.classList.add('active');
+      }
+      window.showToast?.('🎨 Whiteboard spotlighted to full stage.', 'success');
     }
   }
 
@@ -848,93 +904,39 @@ class ClassroomManager {
     }
   }
 
-  muteAllStudents() {
-    if (this.currentRole !== 'teacher' || !this.socket) return;
-    this.socket.emit('teacher-control-media', {
-      roomId: this.currentRoomId,
-      mediaType: 'audio',
-      state: false
-    });
-    window.showToast?.('🔇 Muted all students in classroom.', 'warning');
-  }
-
-  forceAllStudentCamsOn() {
-    if (this.currentRole !== 'teacher' || !this.socket) return;
-    this.socket.emit('teacher-control-media', {
-      roomId: this.currentRoomId,
-      mediaType: 'video',
-      state: true
-    });
-    window.showToast?.('📹 Requested all student cameras ON.', 'info');
-  }
-
-  showTeacherTopAlert(incident) {
-    const ticker = document.getElementById('globalAlertTicker');
-    const txt = document.getElementById('globalAlertText');
-    if (ticker && txt) {
-      txt.innerHTML = `🚨 <strong>MALPRACTICE ALERT:</strong> ${incident.studentName} - ${incident.violationType} (${incident.details})`;
-      ticker.classList.remove('hidden');
-    }
-  }
-
-  renderIncidentStream() {
-    const container = document.getElementById('sidebarIncidentsList') || document.getElementById('malpracticeStreamContainer');
-    const badge = document.getElementById('alertCountBadge');
-    if (badge) badge.textContent = this.activeIncidents.length;
-    if (!container) return;
-
-    if (this.activeIncidents.length === 0) {
-      container.innerHTML = `<div style="text-align:center; color:#64748b; padding:1.5rem 0; font-size:0.8rem;">No malpractice incidents logged in this session.</div>`;
-      return;
-    }
-
-    container.innerHTML = this.activeIncidents.map(inc => `
-      <div class="incident-card">
-        <div class="incident-header">
-          <span class="incident-student-name">${inc.studentName}</span>
-          <span class="incident-time">${new Date(inc.timestamp || Date.now()).toLocaleTimeString()}</span>
-        </div>
-        <div style="font-size:0.82rem; font-weight:700; color:#fb7185;">⚠️ ${inc.violationType}</div>
-        <div style="font-size:0.75rem; color:#94a3b8;">${inc.details}</div>
-      </div>
-    `).join('');
-  }
-
-  updateStudentStatusInGrid(studentName, violation) {
-    const tiles = document.querySelectorAll('.video-tile');
-    tiles.forEach(tile => {
-      if (tile.textContent.includes(studentName)) {
-        tile.classList.add('malpractice-active');
-        setTimeout(() => tile.classList.remove('malpractice-active'), 5000);
-      }
-    });
-  }
-
-  initClassroomDOM() {
-    // 1. Audio Toggle Button
+  setupEventListeners() {
+    // 1. Audio Toggle
     const audioBtn = document.getElementById('ctrlToggleAudioBtn') || document.getElementById('micToggleBtn');
-    audioBtn?.addEventListener('click', async () => {
-      this.isMuted = !this.isMuted;
+    audioBtn?.addEventListener('click', () => {
+      this.isAudioMuted = !this.isAudioMuted;
       if (this.localStream) {
-        this.localStream.getAudioTracks().forEach(t => t.enabled = !this.isMuted);
+        this.localStream.getAudioTracks().forEach(t => t.enabled = !this.isAudioMuted);
       }
-      audioBtn.classList.toggle('btn-active', !this.isMuted);
+      audioBtn.classList.toggle('btn-danger', this.isAudioMuted);
+      audioBtn.classList.toggle('btn-active', !this.isAudioMuted);
       const label = document.getElementById('audioBtnLabel');
-      if (label) label.textContent = this.isMuted ? 'Mic Muted' : 'Mic Active';
-      window.showToast?.(this.isMuted ? 'Microphone muted.' : 'Microphone active.', 'info');
+      if (label) label.textContent = this.isAudioMuted ? 'Mic Muted' : 'Mic Active';
+      if (this.socket) {
+        this.socket.emit('toggle-audio', { muted: this.isAudioMuted });
+      }
+      window.showToast?.(this.isAudioMuted ? 'Microphone muted' : 'Microphone unmuted', 'info');
     });
 
-    // 2. Video Toggle Button
+    // 2. Video Toggle
     const videoBtn = document.getElementById('ctrlToggleVideoBtn') || document.getElementById('camToggleBtn');
-    videoBtn?.addEventListener('click', async () => {
+    videoBtn?.addEventListener('click', () => {
       this.isVideoOff = !this.isVideoOff;
       if (this.localStream) {
         this.localStream.getVideoTracks().forEach(t => t.enabled = !this.isVideoOff);
       }
+      videoBtn.classList.toggle('btn-danger', this.isVideoOff);
       videoBtn.classList.toggle('btn-active', !this.isVideoOff);
       const label = document.getElementById('videoBtnLabel');
       if (label) label.textContent = this.isVideoOff ? 'Cam Off' : 'Cam On';
-      window.showToast?.(this.isVideoOff ? 'Camera turned off.' : 'Camera turned on.', 'info');
+      if (this.socket) {
+        this.socket.emit('toggle-video', { videoOff: this.isVideoOff });
+      }
+      window.showToast?.(this.isVideoOff ? 'Camera turned off' : 'Camera turned on', 'info');
     });
 
     // 3. Screen Share
@@ -942,25 +944,32 @@ class ClassroomManager {
     screenBtn?.addEventListener('click', async () => {
       try {
         if (!this.isScreenSharing) {
-          const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+          const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
           const screenTrack = screenStream.getVideoTracks()[0];
+
           Object.values(this.peerConnections).forEach(pc => {
             const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
             if (sender) sender.replaceTrack(screenTrack);
           });
+
           const localVideo = document.getElementById('localVideoFeed');
           if (localVideo) localVideo.srcObject = screenStream;
           document.getElementById('localVideoTile')?.classList.add('is-screen-sharing');
 
           screenTrack.onended = () => this.stopScreenSharing();
           this.isScreenSharing = true;
-          screenBtn.classList.add('btn-active');
+
+          // Update button label & active highlighting immediately
+          screenBtn.classList.add('btn-active', 'btn-danger');
+          screenBtn.innerHTML = '<span>🛑</span> <span>Stop Sharing</span>';
+          screenBtn.setAttribute('title', 'Click to stop sharing your screen');
+
           if (this.socket) {
             this.socket.emit('toggle-screen-share', { isSharing: true });
           }
           // Automatically spotlight/pin screen share
           this.togglePinTile('local');
-          window.showToast?.('🖥️ Screen sharing active & spotlighted', 'info');
+          window.showToast?.('🖥️ Screen sharing started & spotlighted on stage.', 'success');
         } else {
           this.stopScreenSharing();
         }
@@ -1005,6 +1014,9 @@ class ClassroomManager {
       modeWbBtn?.classList.remove('active');
       if (videoGrid) videoGrid.style.display = 'grid';
       if (wbContainer) wbContainer.style.display = 'none';
+      if (this.pinnedTileId === 'whiteboard') {
+        this.unpinCurrentStage();
+      }
     });
 
     modeWbBtn?.addEventListener('click', () => {
@@ -1057,15 +1069,16 @@ class ClassroomManager {
     this.isScreenSharing = false;
     const btn = document.getElementById('ctrlShareScreenBtn') || document.getElementById('screenShareBtn');
     if (btn) {
-      btn.classList.remove('btn-active');
-      btn.innerHTML = '<span>🖥️</span> Share Screen';
+      btn.classList.remove('btn-active', 'btn-danger');
+      btn.innerHTML = '<span>🖥️</span> <span>Share Screen</span>';
+      btn.setAttribute('title', 'Share Screen');
     }
     document.getElementById('localVideoTile')?.classList.remove('is-screen-sharing');
     if (this.socket) {
       this.socket.emit('toggle-screen-share', { isSharing: false });
     }
     if (this.pinnedTileId === 'local') {
-      this.togglePinTile('local');
+      this.unpinCurrentStage();
     }
     if (this.localStream) {
       const camTrack = this.localStream.getVideoTracks()[0];
@@ -1076,6 +1089,7 @@ class ClassroomManager {
       const localVideo = document.getElementById('localVideoFeed');
       if (localVideo) localVideo.srcObject = this.localStream;
     }
+    window.showToast?.('Screen sharing stopped.', 'info');
   }
 
   appendChatMessage(msg) {
@@ -1097,11 +1111,15 @@ class ClassroomManager {
     const canvas = document.getElementById('whiteboardCanvas');
     if (!canvas) return;
 
+    this.resizeWhiteboard();
+
     const getPos = (e) => {
       const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
       return {
-        x: (e.clientX - rect.left) * (canvas.width / rect.width),
-        y: (e.clientY - rect.top) * (canvas.height / rect.height)
+        x: (e.clientX - rect.left) * scaleX,
+        y: (e.clientY - rect.top) * scaleY
       };
     };
 
@@ -1137,9 +1155,52 @@ class ClassroomManager {
 
       this.lastX = pos.x;
       this.lastY = pos.y;
+
+      // Auto-extend canvas downwards if drawing near bottom
+      if (pos.y > canvas.height - 250) {
+        this.extendWhiteboardHeight(800, false);
+      }
     });
 
     window.addEventListener('mouseup', () => this.isDrawing = false);
+
+    // Touch support for tablets/phones
+    canvas.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 1) {
+        this.isDrawing = true;
+        const pos = getPos(e.touches[0]);
+        this.lastX = pos.x;
+        this.lastY = pos.y;
+      }
+    }, { passive: false });
+
+    canvas.addEventListener('touchmove', (e) => {
+      if (!this.isDrawing || e.touches.length !== 1) return;
+      e.preventDefault();
+      const pos = getPos(e.touches[0]);
+      const isEraser = this.currentTool === 'eraser';
+      const drawColor = this.brushColor || '#6366f1';
+      const drawSize = this.brushSize || 4;
+
+      this.drawLocalLine(this.lastX, this.lastY, pos.x, pos.y, drawColor, drawSize, isEraser);
+
+      if (this.socket) {
+        this.socket.emit('whiteboard-draw', {
+          roomId: this.currentRoomId,
+          x0: this.lastX,
+          y0: this.lastY,
+          x1: pos.x,
+          y1: pos.y,
+          color: drawColor,
+          size: drawSize,
+          isEraser
+        });
+      }
+      this.lastX = pos.x;
+      this.lastY = pos.y;
+    }, { passive: false });
+
+    canvas.addEventListener('touchend', () => this.isDrawing = false);
 
     // Color Swatches Palette
     document.querySelectorAll('.wb-color-dot').forEach(dot => {
@@ -1183,15 +1244,64 @@ class ClassroomManager {
 
     // Clear All Canvas
     document.getElementById('wbClearBtn')?.addEventListener('click', () => {
-      this.clearWhiteboardCanvas(true);
+      if (confirm('Clear the entire whiteboard canvas? This cannot be undone.')) {
+        this.clearWhiteboardCanvas(true);
+      }
     });
+  }
+
+  scrollWhiteboardTop() {
+    const area = document.getElementById('whiteboardScrollArea');
+    if (area) area.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  scrollWhiteboardBottom() {
+    const area = document.getElementById('whiteboardScrollArea');
+    if (area) area.scrollTo({ top: area.scrollHeight, behavior: 'smooth' });
+  }
+
+  extendWhiteboardHeight(extraPx = 1000, notify = true) {
+    const canvas = document.getElementById('whiteboardCanvas');
+    if (!canvas) return;
+
+    // Snapshot existing drawings
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = canvas.width;
+    tempCanvas.height = canvas.height;
+    const tempCtx = tempCanvas.getContext('2d');
+    tempCtx.drawImage(canvas, 0, 0);
+
+    // Expand canvas height
+    const newHeight = canvas.height + extraPx;
+    canvas.height = newHeight;
+    canvas.style.height = `${newHeight}px`;
+
+    // Restore drawings
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(tempCanvas, 0, 0);
+
+    if (notify) {
+      window.showToast?.(`Extended canvas by ${extraPx}px downward. Scroll down to continue writing.`, 'info');
+      const area = document.getElementById('whiteboardScrollArea');
+      if (area) area.scrollBy({ top: 400, behavior: 'smooth' });
+    }
   }
 
   resizeWhiteboard() {
     const canvas = document.getElementById('whiteboardCanvas');
-    if (canvas && canvas.parentElement) {
-      canvas.width = canvas.parentElement.clientWidth || 800;
-      canvas.height = canvas.parentElement.clientHeight || 500;
+    const scrollArea = document.getElementById('whiteboardScrollArea') || canvas?.parentElement;
+    if (!canvas || !scrollArea) return;
+
+    const targetWidth = Math.max(1200, scrollArea.clientWidth || 1200);
+    const targetHeight = Math.max(3000, (scrollArea.clientHeight || 600) * 3);
+
+    if (!canvas.width || canvas.width < targetWidth) {
+      canvas.width = targetWidth;
+      canvas.style.width = `${targetWidth}px`;
+    }
+    if (!canvas.height || canvas.height < targetHeight) {
+      canvas.height = targetHeight;
+      canvas.style.height = `${targetHeight}px`;
     }
   }
 

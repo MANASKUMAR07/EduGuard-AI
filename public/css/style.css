@@ -518,26 +518,40 @@ body {
 }
 
 /* Pinned / Spotlight Screen Sharing Mode */
+.stage-content-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
 .video-grid-view.pinned-active {
-  display: flex !important;
-  flex-direction: column !important;
-  gap: 12px;
-  padding: 12px;
-  overflow-y: auto;
+  position: relative !important;
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 480px;
+  padding: 0 !important;
+  overflow: hidden !important;
 }
 
 .video-tile.is-pinned {
-  flex: 1 1 auto;
-  min-height: 440px;
-  max-height: calc(100vh - 240px);
-  width: 100%;
-  aspect-ratio: auto;
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  aspect-ratio: auto !important;
   border: 2px solid #6366f1 !important;
   box-shadow: 0 0 35px rgba(99, 102, 241, 0.4) !important;
-  z-index: 10;
+  z-index: 10 !important;
+  background: #060911 !important;
+  border-radius: var(--radius-md) !important;
 }
 
 .video-tile.is-pinned video {
+  width: 100% !important;
+  height: 100% !important;
   object-fit: contain !important;
   background: #060911 !important;
 }
@@ -547,22 +561,70 @@ body {
   object-fit: contain !important;
 }
 
-.video-grid-view.pinned-active .video-tile.is-thumbnail {
-  flex: 0 0 115px;
-  height: 115px;
-  min-height: 115px;
-  max-height: 115px;
-  aspect-ratio: 16 / 9;
-  border-radius: var(--radius-sm);
-  box-shadow: var(--shadow-sm);
+/* Teacher / Speaker PiP Mini Video Tile in Bottom Right Corner */
+.video-tile.is-pip-camera {
+  position: absolute !important;
+  bottom: 16px !important;
+  right: 16px !important;
+  width: 220px !important;
+  height: 135px !important;
+  min-height: 135px !important;
+  max-height: 135px !important;
+  z-index: 50 !important;
+  border-radius: 12px !important;
+  border: 2px solid rgba(99, 102, 241, 0.9) !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.85), 0 0 15px rgba(99, 102, 241, 0.3) !important;
+  background: #0f172a !important;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  overflow: hidden;
 }
 
-.video-grid-view.pinned-active #remoteVideosWrapper {
-  display: flex !important;
-  gap: 10px;
-  overflow-x: auto;
-  padding-bottom: 6px;
-  flex-shrink: 0;
+.video-tile.is-pip-camera:hover {
+  transform: scale(1.04);
+}
+
+.video-tile.is-pip-camera video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  border-radius: 10px !important;
+}
+
+.video-tile.is-pip-camera .focus-meter-mini {
+  display: none !important;
+}
+
+.video-grid-view.pinned-active .video-tile:not(.is-pinned):not(.is-pip-camera) {
+  display: none !important;
+}
+
+/* Floating Unpin Button */
+.floating-unpin-btn {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  z-index: 70;
+  background: rgba(15, 23, 42, 0.88);
+  border: 1px solid rgba(239, 68, 68, 0.6);
+  color: #fca5a5;
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 6px 14px;
+  border-radius: 30px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(10px);
+  transition: all 0.2s ease;
+}
+
+.floating-unpin-btn:hover {
+  background: rgba(239, 68, 68, 0.9);
+  color: #ffffff;
+  transform: translateY(-1px);
 }
 
 /* Pin Action Buttons */
@@ -724,15 +786,53 @@ body {
   width: 100%;
   height: 100%;
   flex-direction: column;
+  background: #090d16;
+  position: relative;
+  overflow: hidden;
 }
 
 .whiteboard-toolbar {
   padding: 8px 12px;
-  background: rgba(15, 23, 42, 0.6);
+  background: rgba(15, 23, 42, 0.85);
   border-bottom: 1px solid var(--border-subtle);
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+  flex-wrap: wrap;
+  z-index: 20;
+  backdrop-filter: blur(10px);
+}
+
+.whiteboard-scroll-area {
+  flex: 1 1 auto;
+  width: 100%;
+  height: calc(100% - 52px);
+  overflow-y: auto;
+  overflow-x: auto;
+  position: relative;
+  background-color: #070a12;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+  background-size: 24px 24px;
+  scroll-behavior: smooth;
+}
+
+/* Custom Scrollbar for Infinite Whiteboard */
+.whiteboard-scroll-area::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.whiteboard-scroll-area::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.6);
+}
+
+.whiteboard-scroll-area::-webkit-scrollbar-thumb {
+  background: rgba(99, 102, 241, 0.4);
+  border-radius: 5px;
+}
+
+.whiteboard-scroll-area::-webkit-scrollbar-thumb:hover {
+  background: rgba(99, 102, 241, 0.7);
 }
 
 .wb-color-picker {
@@ -752,19 +852,28 @@ body {
   padding: 4px 10px;
   border-radius: 6px;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.2s ease;
+}
+
+.wb-tool-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.25);
 }
 
 .wb-tool-btn.active {
   background: var(--accent-primary);
   border-color: var(--accent-primary);
+  color: #fff;
 }
 
 #whiteboardCanvas {
-  flex: 1;
-  width: 100%;
-  height: 100%;
-  background: #0f172a;
+  display: block;
+  background: transparent;
   cursor: crosshair;
+  touch-action: none;
 }
 
 /* Floating Bottom Control Dock */

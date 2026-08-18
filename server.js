@@ -1211,10 +1211,48 @@ app.get('/api/reports/students', (req, res) => {
   res.json({ success: true, activeStudents, registeredStudents, students: combinedStudents });
 });
 
+// Global room session start timestamps for accurate duration reporting
+const roomSessionStartTimes = {};
+
 function buildSessionReport(roomId, targetIdentifier, durationMinutes) {
   const targetRoom = (roomId || 'CLASS-101').toUpperCase();
   const isAll = !targetIdentifier || targetIdentifier === 'ALL' || targetIdentifier === 'Entire Classroom' || targetIdentifier === 'all';
   const now = Date.now();
+
+  // Calculate actual elapsed session duration
+  let actualDurationString = '15 Mins';
+  let actualDurationMinutes = 15;
+
+  if (durationMinutes && !isNaN(parseInt(durationMinutes, 10))) {
+    actualDurationMinutes = parseInt(durationMinutes, 10);
+    actualDurationString = `${actualDurationMinutes} Mins`;
+  } else if (roomSessionStartTimes[targetRoom]) {
+    const elapsedSecs = Math.max(5, Math.round((now - roomSessionStartTimes[targetRoom]) / 1000));
+    const elapsedMins = Math.floor(elapsedSecs / 60);
+    const remSecs = elapsedSecs % 60;
+    if (elapsedMins === 0) {
+      actualDurationString = `${elapsedSecs} Secs`;
+      actualDurationMinutes = 1;
+    } else if (elapsedMins < 60) {
+      actualDurationString = `${elapsedMins} Min${elapsedMins === 1 ? '' : 's'}${remSecs > 0 ? ` ${remSecs}s` : ''}`;
+      actualDurationMinutes = elapsedMins;
+    } else {
+      const h = Math.floor(elapsedMins / 60);
+      const m = elapsedMins % 60;
+      actualDurationString = `${h}h ${m}m`;
+      actualDurationMinutes = elapsedMins;
+    }
+  } else if (db.rooms && db.rooms[targetRoom] && db.rooms[targetRoom].createdAt) {
+    const elapsedSecs = Math.max(10, Math.round((now - new Date(db.rooms[targetRoom].createdAt).getTime()) / 1000));
+    const elapsedMins = Math.floor(elapsedSecs / 60);
+    if (elapsedMins < 60) {
+      actualDurationString = `${Math.max(1, elapsedMins)} Mins`;
+      actualDurationMinutes = Math.max(1, elapsedMins);
+    } else {
+      actualDurationString = `${Math.floor(elapsedMins / 60)}h ${elapsedMins % 60}m`;
+      actualDurationMinutes = elapsedMins;
+    }
+  }
 
   let matchedUser = null;
   if (!isAll) {
@@ -1299,8 +1337,8 @@ function buildSessionReport(roomId, targetIdentifier, durationMinutes) {
     candidatePhoto,
     institution: targetInstitution,
     generatedAt: new Date().toISOString(),
-    sessionDuration: `${durationMinutes || 45} mins`,
-    duration: `${durationMinutes || 45} Mins`,
+    sessionDuration: actualDurationString,
+    duration: actualDurationString,
     overallScore: calculatedFocus,
     totalIncidents: totalViolations,
     retentionExpiresAt: new Date(now + SEVEN_DAYS_MS).toISOString(),
@@ -1314,10 +1352,10 @@ function buildSessionReport(roomId, targetIdentifier, durationMinutes) {
       totalIncidents: totalViolations
     },
     incidents: filteredIncidents.slice(0, 40),
-    assessment: `During the ${durationMinutes || 45}-minute live proctored session for ${targetDisplayName} (${targetEmail}), an attention & conduct index of ${calculatedFocus}% was recorded. ${totalViolations === 0 ? 'Zero malpractice infractions observed across the entire monitoring window. Continuous face presence and window compliance verified.' : `A total of ${totalViolations} live infractions were captured (${tabSwitches} tab switches, ${faceDeviations} camera frame deviations). Evidence snapshots attached.`}`,
+    assessment: `During the ${actualDurationString} live proctored session for ${targetDisplayName} (${targetEmail}), an attention & conduct index of ${calculatedFocus}% was recorded. ${totalViolations === 0 ? 'Zero malpractice infractions observed across the entire monitoring window. Continuous face presence and window compliance verified.' : `A total of ${totalViolations} live infractions were captured (${tabSwitches} tab switches, ${faceDeviations} camera frame deviations). Evidence snapshots attached.`}`,
     attentionTimeline: [calculatedFocus, Math.min(100, calculatedFocus + 2), Math.max(40, calculatedFocus - 3), calculatedFocus, Math.min(100, calculatedFocus + 1)],
     aiAssessment: {
-      summary: `During the ${durationMinutes || 45}-minute live proctored session for ${targetDisplayName}, an attention & conduct index of ${calculatedFocus}% was recorded. ${totalViolations === 0 ? 'Zero malpractice infractions observed across the entire monitoring window.' : `A total of ${totalViolations} live infractions were captured (${tabSwitches} tab switches, ${faceDeviations} camera frame deviations).`}`,
+      summary: `During the ${actualDurationString} live proctored session for ${targetDisplayName}, an attention & conduct index of ${calculatedFocus}% was recorded. ${totalViolations === 0 ? 'Zero malpractice infractions observed across the entire monitoring window.' : `A total of ${totalViolations} live infractions were captured (${tabSwitches} tab switches, ${faceDeviations} camera frame deviations).`}`,
       teacherActionItems: [
         totalViolations > 2 ? 'Schedule a 1-on-1 counseling check-in regarding tab distractions.' : 'Classroom demonstrated sustained visual focus and authentic academic engagement.',
         'Coursework review completed with verified telemetry audit logs.'
@@ -1466,6 +1504,10 @@ io.on('connection', (socket) => {
       activeRoomParticipants[room] = [];
     }
 
+    if (!roomSessionStartTimes[room]) {
+      roomSessionStartTimes[room] = Date.now();
+    }
+
     // Teacher limit guard per room
     const currentTeachersInRoom = activeRoomParticipants[room].filter(p => p.role === 'teacher').length;
     if (userRole === 'teacher' && currentTeachersInRoom >= MAX_CLASS_TEACHERS && !activeRoomParticipants[room].some(p => p.socketId === socket.id)) {
@@ -1537,15 +1579,19 @@ io.on('connection', (socket) => {
     const targetRoom = (roomId || socket.roomId || 'CLASS-101').toUpperCase();
     console.log(`🛑 Teacher concluded session for room ${targetRoom}`);
 
-    // Generate comprehensive session report for classroom
-    const sessionReport = buildSessionReport(targetRoom, 'ALL', durationMinutes || 45);
+    // Generate comprehensive session report for classroom with true elapsed duration
+    const sessionReport = buildSessionReport(targetRoom, 'ALL', durationMinutes);
 
     io.to(targetRoom).emit('session-ended-by-teacher', {
       roomId: targetRoom,
       teacherName: socket.userName || 'Faculty Teacher',
       message: `The classroom session ${targetRoom} was officially concluded by ${socket.userName || 'the teacher'}.`,
-      reportId: sessionReport.id
+      reportId: sessionReport.id,
+      duration: sessionReport.duration
     });
+
+    // Reset room start time after report is saved
+    delete roomSessionStartTimes[targetRoom];
 
     // Clean up active participants for this room
     delete activeRoomParticipants[targetRoom];

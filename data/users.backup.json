@@ -1,0 +1,67 @@
+[
+  {
+    "id": "mgr-001",
+    "name": "Executive Manager",
+    "email": "manasku2007@gmail.com",
+    "password": "Manas@2026",
+    "role": "manager",
+    "avatar": "M",
+    "institution": "EduGuard Executive Board"
+  },
+  {
+    "id": "t-001",
+    "name": "Dr. Evelyn Reed",
+    "email": "teacher@eduguard.edu",
+    "password": "EduGuard@2026",
+    "role": "teacher",
+    "avatar": "E",
+    "institution": "Cambridge Academy of Sciences",
+    "emailVerified": true,
+    "verifiedAt": "2026-08-18T07:18:03.736Z"
+  },
+  {
+    "id": "stu-001",
+    "name": "Alex Johnson",
+    "email": "student@eduguard.edu",
+    "password": "EduGuard@2026",
+    "role": "student",
+    "avatar": "A",
+    "institution": "Cambridge Academy of Sciences",
+    "emailVerified": true,
+    "verifiedAt": "2026-08-18T07:18:03.737Z"
+  },
+  {
+    "id": "stu-1787043921370",
+    "name": "Rohan Sharma",
+    "email": "rohan.1787043921327@eduguard.edu",
+    "password": "RohanPassword@2026",
+    "role": "student",
+    "avatar": "R",
+    "institution": "Indian Institute of Technology",
+    "emailVerified": true,
+    "verifiedAt": "2026-08-18T09:05:21.370Z"
+  },
+  {
+    "id": "t-1787044644188",
+    "name": "Prof. Marie Curie",
+    "email": "prof.curie.1787044644166@eduguard.edu",
+    "password": "EduGuard@2026",
+    "role": "teacher",
+    "avatar": "P",
+    "institution": "EduGuard Global Academy",
+    "emailVerified": true,
+    "bypassedByManager": true,
+    "verifiedAt": "2026-08-18T09:17:24.188Z"
+  },
+  {
+    "id": "stu-1787044644231",
+    "name": "Priya Patel",
+    "email": "priya.1787044644166@eduguard.edu",
+    "password": "PriyaPassword@2026",
+    "role": "student",
+    "avatar": "P",
+    "institution": "National Science Academy",
+    "emailVerified": true,
+    "verifiedAt": "2026-08-18T09:17:24.231Z"
+  }
+]
