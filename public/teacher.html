@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EduGuard AI | Teacher Host & Proctoring Suite</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220%22%3E<text y=%2226%22 font-size=%2226%22>👩‍🏫</text></svg>">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+  <!-- Global Malpractice Alert Ticker -->
+  <div id="globalAlertTicker" class="alert-ticker-container hidden">
+    <div id="globalAlertText">🚨 <strong>MALPRACTICE DETECTED:</strong> Student triggered an infraction.</div>
+    <button class="btn-secondary dismiss-ticker-btn" onclick="document.getElementById('globalAlertTicker').classList.add('hidden')">Dismiss</button>
+  </div>
+
+  <!-- Floating Student Admission Knock Tray -->
+  <div id="admissionRequestsTray" class="admission-requests-tray"></div>
+
+  <!-- App Header & Navigation -->
+  <header class="app-header">
+    <div class="brand-container">
+      <div class="brand-logo">🎓</div>
+      <div>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span class="brand-title">EduGuard AI</span>
+          <span class="brand-badge">TEACHER SUITE</span>
+        </div>
+      </div>
+      <div class="creator-badge">
+        <span>✨</span>
+        <span>Creator: <strong style="color:#38bdf8;">Manas Kumar</strong></span>
+      </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <nav class="nav-tabs">
+      <button class="nav-tab-btn active" data-view="classroom">
+        <span>📹</span> Live Classroom
+      </button>
+      <button class="nav-tab-btn" data-view="proctoring">
+        <span>👁️</span> AI Proctoring Center
+      </button>
+      <button class="nav-tab-btn" data-view="assignments" id="navAssignmentsBtn">
+        <span>📚</span> Homework & Grading
+      </button>
+      <button class="nav-tab-btn" data-view="reports" id="navReportsBtn">
+        <span>📊</span> AI Analytics & Reports
+      </button>
+    </nav>
+
+    <!-- Header Actions -->
+    <div class="header-right">
+      <div class="room-action-pills">
+        <button id="openRoomManagerBtn" class="btn-secondary btn-room-pill" title="Classroom Code">
+          <span>🚪</span> Room: <strong id="currentRoomCodeLabel">CLASS-101</strong>
+        </button>
+        <button id="headerCopyCodeBtn" class="btn-secondary btn-copy-pill" title="Copy Class Code">
+          📋 Copy Code
+        </button>
+        <button id="headerNewCodeBtn" class="btn-secondary btn-newcode-pill" title="Generate New Room Code">
+          🔄 New Room
+        </button>
+      </div>
+
+      <!-- Quick Switch Pill -->
+      <div class="role-switch-pills">
+        <button class="role-pill-btn active" onclick="window.location.href='/teacher.html'">👩‍🏫 Teacher</button>
+        <button class="role-pill-btn" onclick="window.location.href='/student.html'">👨‍🎓 Student</button>
+        <button class="role-pill-btn" onclick="window.location.href='/manager.html'">🛡️ Manager</button>
+      </div>
+
+      <div class="user-profile-badge">
+        <div class="user-avatar" id="headerAvatarInitial">E</div>
+        <div>
+          <span class="user-name" id="headerUserName">Dr. Evelyn Reed</span>
+          <span class="user-role-label" id="headerUserRole">Teacher / Host</span>
+        </div>
+      </div>
+
+      <button id="headerLogoutBtn" class="logout-btn" title="Sign out to Login Portal">
+        <span>🚪</span> Exit
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Views Container -->
+  <main class="app-container">
+    
+    <!-- ==========================================
+         VIEW 1: LIVE CLASSROOM & WHITEBOARD STAGE
+         ========================================== -->
+    <section id="view-classroom" class="view-section active">
+      <div class="classroom-layout">
+        
+        <!-- Main Stage -->
+        <div class="classroom-main-stage">
+          <div class="classroom-top-bar">
+            <div class="class-info-title">
+              <span class="live-pulse-dot"></span>
+              <span id="classSessionTitle">Advanced Mathematics & Physics Lecture</span>
+              <span style="font-size:0.75rem; color:var(--text-muted); font-weight:normal;">(ID: <strong id="stageRoomId" style="color:#818cf8;">CLASS-101</strong>)</span>
+              <button id="stageCopyCodeBtn" class="btn-secondary stage-copy-btn" title="Copy Room Code">
+                📋 Copy Code
+              </button>
+            </div>
+            
+            <div class="classroom-mode-tabs">
+              <button id="modeVideoBtn" class="mode-tab-btn active">📹 Video Mode</button>
+              <button id="modeWhiteboardBtn" class="mode-tab-btn">🎨 Whiteboard</button>
+            </div>
+          </div>
+
+          <div class="stage-content-container">
+            <!-- Video Tiles Grid -->
+            <div id="videoGridContainer" class="video-grid-view">
+              
+              <!-- Teacher Local Tile -->
+              <div class="video-tile" id="localVideoTile">
+                <video id="localVideoFeed" autoplay playsinline muted></video>
+                <canvas id="localAiCanvas" class="ai-overlay-canvas"></canvas>
+                <div class="video-overlay-top">
+                  <span class="participant-tag">
+                    <span>👩‍🏫</span> <span id="localTileName">Dr. Evelyn Reed (Host)</span>
+                  </span>
+                  <span class="status-pill status-focused" id="localProctorStatus">
+                    ● Live Stream
+                  </span>
+                </div>
+                <div class="video-overlay-bottom">
+                  <div class="focus-meter-mini">
+                    <span>Room Host</span>
+                    <div class="meter-bar"><div class="meter-fill" style="width: 100%;"></div></div>
+                  </div>
+                  <div style="font-size:0.75rem; color:var(--text-muted);">
+                    HD 1080p
+                  </div>
+                </div>
+              </div>
+
+              <!-- Remote Student Video Tiles Container -->
+              <div id="remoteVideosWrapper" style="display:contents;"></div>
+            </div>
+
+            <!-- Collaborative Whiteboard -->
+            <div id="whiteboardContainer" class="whiteboard-view">
+              <div class="whiteboard-toolbar">
+                <input type="color" id="wbColorPicker" class="wb-color-picker" value="#6366f1" title="Pen Color" />
+                <button id="wbPenBtn" class="wb-tool-btn active">✏️ Draw</button>
+                <button id="wbEraserBtn" class="wb-tool-btn">🧹 Eraser</button>
+                <button id="wbClearBtn" class="wb-tool-btn" style="color:#fb7185;">🗑️ Clear Canvas</button>
+                <span style="font-size:0.75rem; color:var(--text-muted); margin-left:auto;">Collaborative Real-time Canvas</span>
+              </div>
+              <canvas id="whiteboardCanvas"></canvas>
+            </div>
+          </div>
+
+          <!-- Bottom Classroom Controls Dock -->
+          <div class="classroom-controls-bar">
+            <div class="controls-group">
+              <button id="ctrlToggleAudioBtn" class="ctrl-btn btn-active" title="Toggle Microphone">
+                <span>🎙️</span> <span id="audioBtnLabel">Mic Active</span>
+              </button>
+              <button id="ctrlToggleVideoBtn" class="ctrl-btn btn-active" title="Toggle Camera">
+                <span>📹</span> <span id="videoBtnLabel">Cam On</span>
+              </button>
+              <button id="ctrlShareScreenBtn" class="ctrl-btn" title="Share Screen">
+                <span>🖥️</span> Share Screen
+              </button>
+            </div>
+
+            <!-- Teacher Command Tools -->
+            <div class="controls-group">
+              <button id="ctrlMuteAllBtn" class="ctrl-btn btn-danger" title="Mute All Students">
+                <span>🔇</span> Mute All
+              </button>
+              <button id="ctrlRequestCamsBtn" class="ctrl-btn" title="Request All Students Enable Camera">
+                <span>📹</span> Request All Cams
+              </button>
+              <button id="ctrlEndClassBtn" class="ctrl-btn btn-danger" title="End Class Session">
+                <span>🔴</span> End Class
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sidebar: Chat, Students, Incidents -->
+        <div class="classroom-sidebar">
+          <div class="sidebar-tabs">
+            <button class="sidebar-tab-btn active" data-tab="chat">💬 Chat</button>
+            <button class="sidebar-tab-btn" data-tab="students">👥 Students (<span id="studentCountBadge">0</span>)</button>
+            <button class="sidebar-tab-btn" data-tab="alerts">🚨 Alerts (<span id="alertCountBadge">0</span>)</button>
+          </div>
+
+          <div class="sidebar-content-area">
+            <!-- Chat Panel -->
+            <div id="sidebarPanelChat" class="sidebar-panel active" style="display:flex; flex-direction:column; height:100%;">
+              <div id="chatMessagesBox" class="chat-messages-box">
+                <div class="chat-bubble teacher">
+                  <div class="chat-sender">Dr. Evelyn Reed (Host)</div>
+                  <div>Welcome to class! Please make sure your camera is positioned facing forward.</div>
+                </div>
+              </div>
+              <form id="chatInputForm" class="chat-input-bar">
+                <input type="text" id="chatMessageInput" placeholder="Send message to classroom..." autocomplete="off" />
+                <button type="submit" class="btn-primary" style="padding:8px 14px;">Send</button>
+              </form>
+            </div>
+
+            <!-- Students Roster Panel -->
+            <div id="sidebarPanelStudents" class="sidebar-panel" style="display:none; padding:1rem; overflow-y:auto;">
+              <div id="studentsRosterList" style="display:flex; flex-direction:column; gap:10px;">
+                <div style="font-size:0.8rem; color:var(--text-muted); text-align:center; padding:1.5rem 0;">
+                  No students in classroom. Share class code <strong style="color:#818cf8;" id="sidebarRoomCode">CLASS-101</strong> to admit candidates.
+                </div>
+              </div>
+            </div>
+
+            <!-- Incidents Feed Panel -->
+            <div id="sidebarPanelAlerts" class="sidebar-panel" style="display:none; padding:1rem; overflow-y:auto;">
+              <div id="sidebarIncidentsList" style="display:flex; flex-direction:column; gap:10px;">
+                <div style="font-size:0.8rem; color:var(--text-muted); text-align:center; padding:1.5rem 0;">
+                  No malpractice incidents logged in this session.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ==========================================
+         VIEW 2: AI PROCTORING CENTER
+         ========================================== -->
+    <section id="view-proctoring" class="view-section">
+      <div class="proctoring-dashboard">
+        
+        <!-- Live Stat Cards -->
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-icon-wrapper">👥</div>
+            <div>
+              <span class="stat-value" id="statActiveStudentsCount">1</span>
+              <span class="stat-label">Active Candidates</span>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon-wrapper">🎯</div>
+            <div>
+              <span class="stat-value" id="statAvgFocusScore">94%</span>
+              <span class="stat-label">Avg Focus Rating</span>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon-wrapper">🚨</div>
+            <div>
+              <span class="stat-value" id="statTotalViolationsCount" style="color:#fb7185;">0</span>
+              <span class="stat-label">Flagged Malpractice</span>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon-wrapper">🛡️</div>
+            <div>
+              <span class="stat-value" id="statIntegrityRating">98.5%</span>
+              <span class="stat-label">Integrity Index</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Proctoring Main Inspect Grid -->
+        <div class="proctor-main-grid">
+          <div class="live-ai-inspect-card">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <h3 style="font-size:1rem; font-weight:700;">Live AI Computer Vision & Telemetry Feed</h3>
+              <span class="status-pill status-focused">● Multi-Target Neural HUD</span>
+            </div>
+            <div class="inspect-video-container">
+              <video id="proctorInspectVideo" autoplay playsinline muted style="width:100%; height:100%; object-fit:cover;"></video>
+              <canvas id="proctorInspectCanvas" class="ai-overlay-canvas"></canvas>
+              <div class="hud-telemetry-box">
+                <div>TARGET: <strong id="hudStudentName">Alex Johnson</strong></div>
+                <div>POSE: <span id="hudHeadPose" style="color:#34d399;">Facing Center (Focused)</span></div>
+                <div>FOCUS SCORE: <span id="hudFocusMeter">94%</span></div>
+                <div>GAZE DRIFT: <span id="hudGazeDrift">0.00° Normal</span></div>
+                <div>TAB SWITCHES: <span id="hudTabSwitches">0</span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Incidents Gallery -->
+          <div class="incident-gallery-card">
+            <h3 style="font-size:1rem; font-weight:700; margin-bottom:10px;">Malpractice Snapshots & Evidence Log</h3>
+            <div id="incidentEvidenceGallery" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(130px, 1fr)); gap:10px; max-height:330px; overflow-y:auto;">
+              <div style="grid-column:1/-1; text-align:center; color:var(--text-muted); font-size:0.82rem; padding:2rem 0;">
+                📸 No violation evidence frames captured.
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ==========================================
+         VIEW 3: HOMEWORK & ASSIGNMENTS HUB
+         ========================================== -->
+    <section id="view-assignments" class="view-section">
+      <div class="assignment-hub-container">
+        
+        <div class="hub-header-actions">
+          <div>
+            <h2 style="font-family:var(--font-heading); font-size:1.4rem; font-weight:800;">Academic Assignments & Homework Hub</h2>
+            <p style="color:var(--text-muted); font-size:0.85rem; margin-top:4px;">Create, distribute, and grade assignments with full student submission tracking.</p>
+          </div>
+          <button id="openCreateAssignmentModalBtn" class="btn-primary">
+            <span>➕</span> Create Assignment
+          </button>
+        </div>
+
+        <!-- Assignments Grid -->
+        <div id="assignmentsCardsGrid" class="assignment-cards-grid"></div>
+
+      </div>
+    </section>
+
+    <!-- ==========================================
+         VIEW 4: AI ANALYTICS & 7-DAY PDF REPORTS
+         ========================================== -->
+    <section id="view-reports" class="view-section">
+      <div class="report-view-container">
+        
+        <!-- Controls Bar -->
+        <div style="background:var(--bg-glass); border:1px solid var(--border-subtle); border-radius:var(--radius-lg); padding:1.25rem 2rem; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
+          <div style="display:flex; align-items:center; gap:12px;">
+            <label style="font-size:0.85rem; font-weight:600; color:var(--text-muted);">Select Candidate:</label>
+            <select id="reportStudentSelect" class="form-select" style="min-width:220px;">
+              <option value="stu-001">Alex Johnson (student@eduguard.edu)</option>
+            </select>
+            <button id="generateReportBtn" class="btn-secondary">🔄 Refresh Analytics</button>
+          </div>
+          <button id="downloadPdfReportBtn" class="btn-primary">
+            <span>📥</span> Download Official 7-Day Session PDF Report
+          </button>
+        </div>
+
+        <!-- 7-Day Rolling Retention Banner -->
+        <div style="background:rgba(99, 102, 241, 0.1); border:1px solid rgba(99, 102, 241, 0.3); border-radius:var(--radius-md); padding:14px 20px; display:flex; align-items:center; justify-content:space-between;">
+          <div style="display:flex; align-items:center; gap:12px;">
+            <span style="font-size:1.5rem;">🗓️</span>
+            <div>
+              <strong style="color:#c7d2fe; font-size:0.92rem;">7-Day Rolling Academic Data Retention Archive</strong>
+              <div style="color:var(--text-muted); font-size:0.78rem;">All classroom proctoring telemetry, malpractice snapshots, and student performance metrics are preserved for 7 days.</div>
+            </div>
+          </div>
+          <button id="refreshPdfArchiveBtn" class="btn-secondary" style="font-size:0.78rem;">
+            🔄 Refresh Archive
+          </button>
+        </div>
+
+        <!-- Hero Report Card -->
+        <div class="report-hero-card">
+          <div>
+            <span class="brand-badge" style="margin-left:0;">OFFICIAL INTEGRITY AUDIT</span>
+            <h2 class="report-main-title" style="font-family:var(--font-heading); font-size:1.8rem; font-weight:800; margin:10px 0 5px 0;">Comprehensive Session Report</h2>
+            <p style="color:var(--text-muted); font-size:0.85rem;">Evaluation for Candidate: <strong id="reportStudentName" style="color:#fff;">Alex Johnson</strong></p>
+
+            <div class="report-meta-grid">
+              <div class="report-meta-box">
+                <span class="report-meta-label">Session ID</span>
+                <span class="report-meta-val" id="reportClassroomId">CLASS-101</span>
+              </div>
+              <div class="report-meta-box">
+                <span class="report-meta-label">Duration</span>
+                <span class="report-meta-val" id="reportSessionDuration">45 Mins</span>
+              </div>
+              <div class="report-meta-box">
+                <span class="report-meta-label">Total Flagged Incidents</span>
+                <span class="report-meta-val" id="reportIncidentCount" style="color:#fb7185;">0</span>
+              </div>
+            </div>
+
+            <p id="reportSummaryAssessment" style="font-size:0.88rem; color:#cbd5e1; line-height:1.6; margin-top:10px;">
+              Candidate maintained exemplary visual focus and compliant screen engagement throughout the session. No prohibited external assistance detected.
+            </p>
+          </div>
+
+          <div class="report-score-donut">
+            <span style="font-size:0.8rem; color:var(--text-muted); font-weight:700; text-transform:uppercase;">Overall Focus Score</span>
+            <div class="donut-value" id="reportOverallScore">94%</div>
+            <span class="status-pill status-focused" id="reportVerdictPill">PASSED - HIGH INTEGRITY</span>
+          </div>
+        </div>
+
+        <!-- Charts Row -->
+        <div class="charts-row">
+          <div class="chart-card">
+            <h4 style="font-size:0.92rem; font-weight:700; color:#fff;">Attention & Focus Timeline (Per Minute)</h4>
+            <div class="chart-canvas-wrapper">
+              <canvas id="chartAttentionTimeline"></canvas>
+            </div>
+          </div>
+          <div class="chart-card">
+            <h4 style="font-size:0.92rem; font-weight:700; color:#fff;">Malpractice Category Distribution</h4>
+            <div class="chart-canvas-wrapper">
+              <canvas id="chartViolationsBreakdown"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- Historical 7-Day Session Archive Table -->
+        <div class="audit-table-card">
+          <h4 style="font-size:0.95rem; font-weight:700; margin-bottom:12px;">7-Day Generated Session Archive</h4>
+          <table class="custom-table">
+            <thead>
+              <tr>
+                <th>Date & Time</th>
+                <th>Candidate</th>
+                <th>Classroom</th>
+                <th>Focus Score</th>
+                <th>Malpractice Flags</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="pdfArchiveTableBody">
+              <tr>
+                <td>Today, 10:00 AM</td>
+                <td>Alex Johnson</td>
+                <td>CLASS-101</td>
+                <td><span class="status-pill status-focused">94%</span></td>
+                <td>0 Violations</td>
+                <td><button class="btn-secondary" style="padding:4px 10px; font-size:0.75rem;" onclick="window.print()">🖨️ Print / Save PDF</button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- =======================================================
+       ACADEMIC RULES & GUIDELINES FOOTER
+       ======================================================= -->
+  <footer class="app-rules-footer">
+    <div class="footer-inner-container">
+      <div class="footer-top-row">
+        <div>
+          <span class="footer-rules-title">🏛️ Institutional Guidelines & Academic Integrity Protocol</span>
+          <p style="font-size:0.8rem; color:#94a3b8; margin-top:3px;">Standard operating procedures enforced by EduGuard AI Neural Monitoring Engine.</p>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span class="brand-badge">PROCTORING LEVEL: HIGH</span>
+          <span class="brand-badge">RETENTION: 7 DAYS</span>
+        </div>
+      </div>
+
+      <div class="rules-cards-grid">
+        <div class="rule-card rule-card-indigo">
+          <div class="rule-card-header">
+            <span>📹</span>
+            <strong>Continuous Camera & Mic Stream</strong>
+          </div>
+          <p class="rule-card-text">Candidates must maintain an unobstructed webcam feed. Background must remain properly lit throughout the entire examination.</p>
+        </div>
+        <div class="rule-card rule-card-rose">
+          <div class="rule-card-header">
+            <span>📱</span>
+            <strong>Zero Secondary Electronic Devices</strong>
+          </div>
+          <p class="rule-card-text">Usage of smartphones, smartwatches, external earbuds, or secondary tablets will trigger immediate automated malpractice flags.</p>
+        </div>
+        <div class="rule-card rule-card-emerald">
+          <div class="rule-card-header">
+            <span>🖥️</span>
+            <strong>Screen & Tab Lock Enforcement</strong>
+          </div>
+          <p class="rule-card-text">Navigating away from the active classroom tab, minimizing windows, or launching third-party AI assistants is logged in real time.</p>
+        </div>
+        <div class="rule-card rule-card-cyan">
+          <div class="rule-card-header">
+            <span>👁️</span>
+            <strong>Gaze & Head Orientation Analysis</strong>
+          </div>
+          <p class="rule-card-text">Prolonged gaze drift away from the proctored screen (>3.5s) will deduct attention points and notify the invigilator.</p>
+        </div>
+        <div class="rule-card rule-card-amber">
+          <div class="rule-card-header">
+            <span>👥</span>
+            <strong>Multi-Person Presence Detection</strong>
+          </div>
+          <p class="rule-card-text">Only the registered student may be present in the camera frame. Additional faces will be flagged as unauthorized collusion.</p>
+        </div>
+        <div class="rule-card rule-card-purple">
+          <div class="rule-card-header">
+            <span>📑</span>
+            <strong>7-Day Audit Log & PDF Evidentiary Trail</strong>
+          </div>
+          <p class="rule-card-text">All biometric telemetry, attention graphs, and timestamped infraction frames are archived for 7 days for institutional review.</p>
+        </div>
+      </div>
+
+      <div class="footer-bottom-bar">
+        <div>
+          © 2026 EduGuard AI Platform. Academic Integrity & Proctoring Suite.
+        </div>
+        <div>
+          Architected & Developed by <strong style="color:#e0e7ff;">Manas Kumar</strong>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Modal: Create Assignment -->
+  <div id="createAssignmentModal" class="modal-backdrop">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 class="modal-title">Create New Academic Assignment</h3>
+        <button class="modal-close-btn" onclick="document.getElementById('createAssignmentModal').classList.remove('active')">✕</button>
+      </div>
+      <form id="createAssignmentForm">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Assignment Title</label>
+            <input type="text" id="asgTitleInput" class="form-input" placeholder="e.g. Quantum Physics Problem Set 3" required />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Subject / Discipline</label>
+            <input type="text" id="asgSubjectInput" class="form-input" placeholder="e.g. Physics" value="Mathematics" required />
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+            <div class="form-group">
+              <label class="form-label">Total Points</label>
+              <input type="number" id="asgPointsInput" class="form-input" value="100" min="1" max="1000" required />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Due Date</label>
+              <input type="date" id="asgDueDateInput" class="form-input" required />
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Instructions & Problem Statement</label>
+            <textarea id="asgDescInput" class="form-textarea" rows="4" placeholder="Provide problem descriptions, reading material, or required format..." required></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary" onclick="document.getElementById('createAssignmentModal').classList.remove('active')">Cancel</button>
+          <button type="submit" class="btn-primary">Publish Assignment</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Submissions Review -->
+  <div id="submissionsModal" class="modal-backdrop">
+    <div class="modal-dialog" style="max-width:700px;">
+      <div class="modal-header">
+        <h3 class="modal-title" id="submissionsModalTitle">Student Submissions</h3>
+        <button class="modal-close-btn" onclick="document.getElementById('submissionsModal').classList.remove('active')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div id="submissionsListContainer" style="display:flex; flex-direction:column; gap:12px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toastContainer" class="toast-container"></div>
+
+  <!-- Scripts -->
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/proctoring.js"></script>
+  <script src="/js/classroom.js"></script>
+  <script src="/js/assignments.js"></script>
+  <script src="/js/reports.js"></script>
+  <script src="/js/teacher-portal.js"></script>
+</body>
+</html>

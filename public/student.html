@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EduGuard AI | Student Candidate & Proctored Portal</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220%22%3E<text y=%2226%22 font-size=%2226%22>👨‍🎓</text></svg>">
+</head>
+<body>
+
+  <!-- Global Alert Ticker -->
+  <div id="globalAlertTicker" class="alert-ticker-container hidden">
+    <div id="globalAlertText">⚠️ <strong>SYSTEM ALERT:</strong> Live monitoring active.</div>
+    <button class="btn-secondary dismiss-ticker-btn" onclick="document.getElementById('globalAlertTicker').classList.add('hidden')">Dismiss</button>
+  </div>
+
+  <!-- App Header & Navigation -->
+  <header class="app-header">
+    <div class="brand-container">
+      <div class="brand-logo">🎓</div>
+      <div>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span class="brand-title">EduGuard AI</span>
+          <span class="brand-badge" style="background:rgba(16,185,129,0.15); border-color:rgba(16,185,129,0.4); color:#34d399;">STUDENT PORTAL</span>
+        </div>
+      </div>
+      <div class="creator-badge">
+        <span>✨</span>
+        <span>Creator: <strong style="color:#38bdf8;">Manas Kumar</strong></span>
+      </div>
+    </div>
+
+    <!-- Student Navigation Tabs -->
+    <nav class="nav-tabs">
+      <button class="nav-tab-btn active" data-view="classroom">
+        <span>📹</span> Live Classroom
+      </button>
+      <button class="nav-tab-btn" data-view="assignments" id="navAssignmentsBtn">
+        <span>📚</span> My Homework
+      </button>
+      <button class="nav-tab-btn" data-view="tasks" id="navTasksBtn">
+        <span>📋</span> My Study Tasks
+      </button>
+    </nav>
+
+    <!-- Header Right -->
+    <div class="header-right">
+      <div class="room-action-pills">
+        <button id="openRoomManagerBtn" class="btn-secondary btn-room-pill" title="Classroom Code">
+          <span>🚪</span> Class Code: <strong id="currentRoomCodeLabel">CLASS-101</strong>
+        </button>
+      </div>
+
+      <!-- Quick Switch Pill -->
+      <div class="role-switch-pills">
+        <button class="role-pill-btn" onclick="window.location.href='/teacher.html'">👩‍🏫 Teacher</button>
+        <button class="role-pill-btn active" onclick="window.location.href='/student.html'">👨‍🎓 Student</button>
+        <button class="role-pill-btn" onclick="window.location.href='/manager.html'">🛡️ Manager</button>
+      </div>
+
+      <div class="user-profile-badge">
+        <div class="user-avatar" id="headerAvatarInitial" style="background:linear-gradient(135deg,#10b981,#06b6d4);">A</div>
+        <div>
+          <span class="user-name" id="headerUserName">Alex Johnson</span>
+          <span class="user-role-label" id="headerUserRole">Candidate / Student</span>
+        </div>
+      </div>
+
+      <button id="headerLogoutBtn" class="logout-btn" title="Sign out to Login Portal">
+        <span>🚪</span> Exit
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Views Container -->
+  <main class="app-container">
+    
+    <!-- ==========================================
+         VIEW 1: LIVE PROCTORED CLASSROOM
+         ========================================== -->
+    <section id="view-classroom" class="view-section active">
+      <div class="classroom-layout">
+        
+        <!-- Main Stage -->
+        <div class="classroom-main-stage">
+          <div class="classroom-top-bar">
+            <div class="class-info-title">
+              <span class="live-pulse-dot"></span>
+              <span id="classSessionTitle">Advanced Mathematics & Physics Lecture</span>
+              <span style="font-size:0.75rem; color:var(--text-muted); font-weight:normal;">(Class Code: <strong id="stageRoomId" style="color:#818cf8;">CLASS-101</strong>)</span>
+            </div>
+            
+            <div class="classroom-mode-tabs">
+              <button id="modeVideoBtn" class="mode-tab-btn active">📹 Video Mode</button>
+              <button id="modeWhiteboardBtn" class="mode-tab-btn">🎨 Whiteboard</button>
+            </div>
+          </div>
+
+          <div class="stage-content-container">
+            <!-- Video Grid View -->
+            <div id="videoGridContainer" class="video-grid-view">
+              
+              <!-- Student Local Video Tile with AI Proctoring HUD -->
+              <div class="video-tile" id="localVideoTile">
+                <video id="localVideoFeed" autoplay playsinline muted></video>
+                <canvas id="localAiCanvas" class="ai-overlay-canvas"></canvas>
+                <div class="video-overlay-top">
+                  <span class="participant-tag">
+                    <span>👨‍🎓</span> <span id="localTileName">Alex Johnson (You)</span>
+                  </span>
+                  <span class="status-pill status-focused" id="localProctorStatus">
+                    ● AI Monitored
+                  </span>
+                </div>
+                <div class="video-overlay-bottom">
+                  <div class="focus-meter-mini">
+                    <span>Focus Score</span>
+                    <div class="meter-bar"><div class="meter-fill" id="studentFocusFill" style="width: 95%;"></div></div>
+                    <span id="studentFocusText" style="font-weight:700; color:#34d399;">95%</span>
+                  </div>
+                  <div style="font-size:0.75rem; color:var(--text-muted);">
+                    Anti-Malpractice Active
+                  </div>
+                </div>
+              </div>
+
+              <!-- Remote Video Tiles (e.g. Teacher Host & Classmates) -->
+              <div id="remoteVideosWrapper" style="display:contents;"></div>
+            </div>
+
+            <!-- Collaborative Whiteboard -->
+            <div id="whiteboardContainer" class="whiteboard-view">
+              <div class="whiteboard-toolbar">
+                <input type="color" id="wbColorPicker" class="wb-color-picker" value="#38bdf8" title="Pen Color" />
+                <button id="wbPenBtn" class="wb-tool-btn active">✏️ Draw</button>
+                <button id="wbEraserBtn" class="wb-tool-btn">🧹 Eraser</button>
+                <span style="font-size:0.75rem; color:var(--text-muted); margin-left:auto;">Interactive Whiteboard</span>
+              </div>
+              <canvas id="whiteboardCanvas"></canvas>
+            </div>
+          </div>
+
+          <!-- Bottom Classroom Controls Dock -->
+          <div class="classroom-controls-bar">
+            <div class="controls-group">
+              <button id="ctrlToggleAudioBtn" class="ctrl-btn btn-active" title="Toggle Microphone">
+                <span>🎙️</span> <span id="audioBtnLabel">Mic Active</span>
+              </button>
+              <button id="ctrlToggleVideoBtn" class="ctrl-btn btn-active" title="Toggle Camera">
+                <span>📹</span> <span id="videoBtnLabel">Cam On</span>
+              </button>
+              <button id="ctrlShareScreenBtn" class="ctrl-btn" title="Share Screen">
+                <span>🖥️</span> Share Screen
+              </button>
+              <button id="ctrlRaiseHandBtn" class="ctrl-btn" title="Raise Hand for Question">
+                <span>✋</span> <span id="raiseHandLabel">Raise Hand</span>
+              </button>
+            </div>
+
+            <div class="controls-group">
+              <button class="ctrl-btn btn-danger" onclick="window.location.href='/index.html'">
+                <span>🚪</span> Leave Class
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sidebar: Live Chat & Roster -->
+        <div class="classroom-sidebar">
+          <div class="sidebar-tabs">
+            <button class="sidebar-tab-btn active" data-tab="chat">💬 Chat</button>
+            <button class="sidebar-tab-btn" data-tab="students">👥 Classmates (<span id="studentCountBadge">1</span>)</button>
+          </div>
+
+          <div class="sidebar-content-area">
+            <!-- Chat Panel -->
+            <div id="sidebarPanelChat" class="sidebar-panel active" style="display:flex; flex-direction:column; height:100%;">
+              <div id="chatMessagesBox" class="chat-messages-box">
+                <div class="chat-bubble teacher">
+                  <div class="chat-sender">Dr. Evelyn Reed (Teacher Host)</div>
+                  <div>Welcome Alex! Please keep your webcam centered on your desk.</div>
+                </div>
+              </div>
+              <form id="chatInputForm" class="chat-input-bar">
+                <input type="text" id="chatMessageInput" placeholder="Type a question or answer..." autocomplete="off" />
+                <button type="submit" class="btn-primary" style="padding:8px 14px;">Send</button>
+              </form>
+            </div>
+
+            <!-- Students Roster Panel -->
+            <div id="sidebarPanelStudents" class="sidebar-panel" style="display:none; padding:1rem; overflow-y:auto;">
+              <div id="studentsRosterList" style="display:flex; flex-direction:column; gap:10px;"></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ==========================================
+         VIEW 2: MY HOMEWORK & SUBMISSIONS
+         ========================================== -->
+    <section id="view-assignments" class="view-section">
+      <div class="assignment-hub-container">
+        
+        <div class="hub-header-actions">
+          <div>
+            <h2 style="font-family:var(--font-heading); font-size:1.4rem; font-weight:800;">My Assigned Homework & Tasks</h2>
+            <p style="color:var(--text-muted); font-size:0.85rem; margin-top:4px;">Submit answers, upload working files, and view teacher grading & feedback.</p>
+          </div>
+        </div>
+
+        <!-- Assignments Grid -->
+        <div id="assignmentsCardsGrid" class="assignment-cards-grid"></div>
+
+      </div>
+    </section>
+
+    <!-- ==========================================
+         VIEW 3: MY STUDY TASKS (KANBAN)
+         ========================================== -->
+    <section id="view-tasks" class="view-section">
+      <div class="assignment-hub-container">
+        
+        <div class="hub-header-actions">
+          <div>
+            <h2 style="font-family:var(--font-heading); font-size:1.4rem; font-weight:800;">Personal Study Planner (Kanban Board)</h2>
+            <p style="color:var(--text-muted); font-size:0.85rem; margin-top:4px;">Organize your exam preparation, homework deadlines, and revision priorities.</p>
+          </div>
+          <button id="openCreateTaskModalBtn" class="btn-primary">
+            <span>➕</span> Add Personal Task
+          </button>
+        </div>
+
+        <!-- Kanban Board Columns -->
+        <div class="tasks-board-grid">
+          
+          <!-- Column 1: To Do -->
+          <div class="kanban-column" id="kanbanColTodo">
+            <div class="column-header">
+              <span style="display:flex; align-items:center; gap:8px;">
+                <span style="color:#818cf8;">📌</span> To Do
+              </span>
+              <span class="brand-badge" id="taskCountTodo">0</span>
+            </div>
+            <div id="taskListTodo" style="display:flex; flex-direction:column; gap:10px; flex:1;"></div>
+          </div>
+
+          <!-- Column 2: In Progress -->
+          <div class="kanban-column" id="kanbanColInProgress">
+            <div class="column-header">
+              <span style="display:flex; align-items:center; gap:8px;">
+                <span style="color:#fbbf24;">⚡</span> In Progress
+              </span>
+              <span class="brand-badge" id="taskCountInProgress">0</span>
+            </div>
+            <div id="taskListInProgress" style="display:flex; flex-direction:column; gap:10px; flex:1;"></div>
+          </div>
+
+          <!-- Column 3: Completed -->
+          <div class="kanban-column" id="kanbanColDone">
+            <div class="column-header">
+              <span style="display:flex; align-items:center; gap:8px;">
+                <span style="color:#34d399;">✅</span> Completed
+              </span>
+              <span class="brand-badge" id="taskCountDone">0</span>
+            </div>
+            <div id="taskListDone" style="display:flex; flex-direction:column; gap:10px; flex:1;"></div>
+          </div>
+
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Institutional Rules Footer -->
+  <footer class="app-rules-footer">
+    <div class="footer-inner-container">
+      <div class="footer-top-row">
+        <div>
+          <span class="footer-rules-title">🏛️ Student Integrity Code of Conduct</span>
+          <p style="font-size:0.8rem; color:#94a3b8; margin-top:3px;">Anti-Malpractice monitoring protocols active during examinations and classes.</p>
+        </div>
+      </div>
+
+      <div class="rules-cards-grid">
+        <div class="rule-card rule-card-indigo">
+          <div class="rule-card-header"><span>📹</span><strong>Unobstructed Face Presence</strong></div>
+          <p class="rule-card-text">Always ensure your full face and workspace are clearly lit and visible to the proctoring camera.</p>
+        </div>
+        <div class="rule-card rule-card-rose">
+          <div class="rule-card-header"><span>📱</span><strong>No Cellphones or Smart Devices</strong></div>
+          <p class="rule-card-text">Looking down at unauthorized phones, smartwatches, or notes will automatically trigger malpractice flags.</p>
+        </div>
+        <div class="rule-card rule-card-emerald">
+          <div class="rule-card-header"><span>🖥️</span><strong>Tab Lock Active</strong></div>
+          <p class="rule-card-text">Switching browser tabs or opening secondary apps will deduct focus points and alert your invigilator.</p>
+        </div>
+      </div>
+
+      <div class="footer-bottom-bar">
+        <div>© 2026 EduGuard AI Platform. Academic Integrity & Proctoring Suite.</div>
+        <div>Architected & Developed by <strong style="color:#e0e7ff;">Manas Kumar</strong></div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Modal: Submit Homework -->
+  <div id="submitAssignmentModal" class="modal-backdrop">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 class="modal-title" id="submitModalTitle">Submit Assignment</h3>
+        <button class="modal-close-btn" onclick="document.getElementById('submitAssignmentModal').classList.remove('active')">✕</button>
+      </div>
+      <form id="submitAssignmentForm">
+        <input type="hidden" id="submitAsgId" />
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Solution Text / Explanation</label>
+            <textarea id="submitTextContent" class="form-textarea" rows="5" placeholder="Enter your detailed solutions, proofs, or write-up here..." required></textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Attach File / PDF (Optional)</label>
+            <input type="file" id="submitFileInput" class="form-input" />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary" onclick="document.getElementById('submitAssignmentModal').classList.remove('active')">Cancel</button>
+          <button type="submit" class="btn-primary">Submit for Grading</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Create Personal Task -->
+  <div id="createTaskModal" class="modal-backdrop">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 class="modal-title">Add Study Task</h3>
+        <button class="modal-close-btn" onclick="document.getElementById('createTaskModal').classList.remove('active')">✕</button>
+      </div>
+      <form id="createTaskForm">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Task Title</label>
+            <input type="text" id="taskTitleInput" class="form-input" placeholder="e.g. Revise Calculus Chapter 4" required />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Priority</label>
+            <select id="taskPriorityInput" class="form-select">
+              <option value="high">🔴 High Priority</option>
+              <option value="medium" selected>🟡 Medium Priority</option>
+              <option value="low">🟢 Low Priority</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Target Completion Date</label>
+            <input type="date" id="taskDueDateInput" class="form-input" required />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary" onclick="document.getElementById('createTaskModal').classList.remove('active')">Cancel</button>
+          <button type="submit" class="btn-primary">Save Task</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="toastContainer" class="toast-container"></div>
+
+  <!-- Scripts -->
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/proctoring.js"></script>
+  <script src="/js/classroom.js"></script>
+  <script src="/js/assignments.js"></script>
+  <script src="/js/student-portal.js"></script>
+</body>
+</html>

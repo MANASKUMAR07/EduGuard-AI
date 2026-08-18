@@ -332,6 +332,41 @@ document.addEventListener('DOMContentLoaded', () => {
     updatePasswordUI();
   });
 
+  // 1-Click Instant Demo Login Buttons
+  document.getElementById('quickDemoTeacherBtn')?.addEventListener('click', () => {
+    authRoleTabTeacher?.click();
+    completeLogin({
+      name: 'Dr. Evelyn Reed',
+      email: 'teacher@eduguard.edu',
+      role: 'teacher',
+      id: 't-001'
+    });
+  });
+
+  document.getElementById('quickDemoStudentBtn')?.addEventListener('click', () => {
+    authRoleTabStudent?.click();
+    const classCode = authClassCodeInput?.value.trim().toUpperCase() || 'CLASS-101';
+    if (window.classroom) {
+      window.classroom.currentRoomId = classCode;
+    }
+    completeLogin({
+      name: 'Alex Johnson',
+      email: 'student@eduguard.edu',
+      role: 'student',
+      id: 'stu-001'
+    });
+  });
+
+  document.getElementById('quickDemoManagerBtn')?.addEventListener('click', () => {
+    authRoleTabManager?.click();
+    completeLogin({
+      name: 'Executive Manager',
+      email: 'manager@eduguard.edu',
+      role: 'manager',
+      id: 'mgr-001'
+    });
+  });
+
   authForm?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const email = authEmailInput.value.trim();
@@ -491,12 +526,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
   headerLogoutBtn?.addEventListener('click', () => {
     localStorage.removeItem('eduguard_user');
+    window.classroom?.cleanupSession();
     authOverlay.classList.remove('hidden');
     authRoleTabTeacher?.click();
+    const nameEl = document.getElementById('headerUserName');
+    const roleEl = document.getElementById('headerUserRole');
+    const avatarEl = document.getElementById('headerAvatarInitial');
+    if (nameEl) nameEl.textContent = 'Guest Portal';
+    if (roleEl) roleEl.textContent = 'Select Role to Enter';
+    if (avatarEl) avatarEl.textContent = '🎓';
     window.showToast?.('Signed out of EduGuard AI.', 'info');
   });
 
-  // Always display the Authentication & Role Portal on load
+  // Always land on the Login Portal on initial load
+  localStorage.removeItem('eduguard_user');
   authOverlay.classList.remove('hidden');
   authRoleTabTeacher?.click();
 

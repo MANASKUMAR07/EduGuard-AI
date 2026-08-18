@@ -13,17 +13,20 @@ const ICE_SERVERS = {
 class ClassroomManager {
   constructor() {
     this.socket = null;
-    this.currentRole = 'teacher';
+    this.isAuthenticated = false;
+    this.currentRole = null;
     this.currentRoomId = 'CLASS-101';
     this.currentUser = {
-      name: 'Dr. Evelyn Reed',
-      id: 't-001',
-      role: 'teacher'
+      name: '',
+      id: '',
+      role: '',
+      email: ''
     };
 
     this.localStream = null;
     this.peerConnections = {}; // socketId -> RTCPeerConnection
     this.remoteStreams = {}; // socketId -> MediaStream
+    this.remoteMediaStates = {}; // socketId -> { audio: bool, video: bool }
 
     this.isMuted = false;
     this.isVideoOff = false;
@@ -47,14 +50,21 @@ class ClassroomManager {
   }
 
   initSocket() {
-    this.socket = io();
+    try {
+      this.socket = io();
+    } catch (e) {
+      console.warn('Socket.IO connection failed or offline:', e);
+      return;
+    }
 
     this.socket.on('connect', () => {
       console.log('Connected to EduGuard signaling socket:', this.socket.id);
-      if (this.currentRole === 'teacher') {
-        this.joinRoom();
-      } else {
-        this.requestStudentJoin();
+      if (this.isAuthenticated && this.currentRole) {
+        if (this.currentRole === 'teacher') {
+          this.joinRoom(this.currentRoomId);
+        } else if (this.currentRole === 'student') {
+          this.requestStudentJoin(this.currentRoomId);
+        }
       }
     });
 
@@ -89,7 +99,7 @@ class ClassroomManager {
       }
     });
 
-    // 4b. Session Concluded By Teacher (Automatic Disconnect for Students)
+    // 4b. Session Concluded By Teacher
     this.socket.on('session-ended-by-teacher', (data) => {
       this.handleSessionEndedByTeacher(data);
     });
@@ -212,9 +222,9 @@ class ClassroomManager {
     if (this.socket && this.socket.connected) {
       this.socket.emit('student-request-join', {
         roomId: room,
-        name: this.currentUser.name,
-        studentId: this.currentUser.id,
-        email: this.currentUser.email
+        name: this.currentUser.name || 'Alex Johnson',
+        studentId: this.currentUser.id || 'stu-001',
+        email: this.currentUser.email || 'student@eduguard.edu'
       });
     }
   }
@@ -223,10 +233,10 @@ class ClassroomManager {
     if (this.currentRole !== 'teacher') return;
     if (this.proctor) this.proctor.playAlarmSound('info');
 
-    let tray = document.getElementById('teacherAdmissionTray');
+    let tray = document.getElementById('admissionRequestsTray') || document.getElementById('teacherAdmissionTray');
     if (!tray) {
       tray = document.createElement('div');
-      tray.id = 'teacherAdmissionTray';
+      tray.id = 'admissionRequestsTray';
       tray.className = 'admission-requests-tray';
       document.body.appendChild(tray);
     }
@@ -239,26 +249,26 @@ class ClassroomManager {
     card.className = 'admission-knock-card';
     card.innerHTML = `
       <div style="display:flex; align-items:center; gap:10px;">
-        <div class="user-avatar" style="width:34px; height:34px; font-size:0.9rem;">${reqData.name.charAt(0).toUpperCase()}</div>
+        <div class="user-avatar" style="width:34px; height:34px; font-size:0.9rem;">${(reqData.name || 'S').charAt(0).toUpperCase()}</div>
         <div>
           <strong style="font-size:0.85rem; color:#fff;">${reqData.name}</strong><br>
-          <span style="font-size:0.72rem; color:#94a3b8;">Knocking to join (${new Date(reqData.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})})</span>
+          <span style="font-size:0.72rem; color:#94a3b8;">Knocking to join (${new Date(reqData.timestamp || Date.now()).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})})</span>
         </div>
       </div>
       <div style="display:flex; gap:6px; margin-top:8px;">
-        <button class="btn-primary" style="padding:6px 12px; font-size:0.75rem; flex:1; justify-content:center;" onclick="classroom.decideAdmission('${reqData.socketId}', true, '${cardId}')">
+        <button class="btn-primary" style="padding:6px 12px; font-size:0.75rem; flex:1; justify-content:center;" onclick="window.classroom.decideAdmission('${reqData.socketId}', true, '${cardId}')">
           ✅ Admit
         </button>
-        <button class="btn-secondary" style="padding:6px 12px; font-size:0.75rem; flex:1; justify-content:center; border-color:rgba(239,68,68,0.4); color:#fca5a5;" onclick="classroom.decideAdmission('${reqData.socketId}', false, '${cardId}')">
+        <button class="btn-secondary" style="padding:6px 12px; font-size:0.75rem; flex:1; justify-content:center; border-color:rgba(239,68,68,0.4); color:#fca5a5;" onclick="window.classroom.decideAdmission('${reqData.socketId}', false, '${cardId}')">
           ❌ Deny
         </button>
       </div>
     `;
     tray.appendChild(card);
-    window.showToast?.(`🚪 Student ${reqData.name} requested to join the class!`, 'info');
   }
 
   decideAdmission(targetSocketId, approved, cardId) {
+    if (!this.socket) return;
     this.socket.emit('teacher-decision-join', {
       targetSocketId,
       roomId: this.currentRoomId,
@@ -277,18 +287,59 @@ class ClassroomManager {
         lobby.className = 'waiting-lobby-screen';
         document.body.appendChild(lobby);
       }
+      const room = roomId || this.currentRoomId || 'CLASS-101';
+      const studentName = this.currentUser.name || 'Alex Johnson';
+      const studentEmail = this.currentUser.email || 'student@eduguard.edu';
+
       lobby.innerHTML = `
-        <div class="waiting-lobby-card">
-          <div class="waiting-spinner-ring"></div>
-          <h2 style="font-size:1.4rem; font-weight:800; color:#fff; margin-top:1rem;">Waiting for Teacher Approval</h2>
-          <p style="font-size:0.85rem; color:#94a3b8; margin-top:6px; line-height:1.5;">
-            You have knocked to join class <strong style="color:#818cf8;">${roomId || this.currentRoomId}</strong>.<br>
-            Please wait while the teacher accepts your admission request.
+        <div class="waiting-lobby-card" style="max-width: 480px; text-align: center; border: 1px solid rgba(99, 102, 241, 0.4); box-shadow: 0 20px 50px rgba(0,0,0,0.8), 0 0 35px rgba(99, 102, 241, 0.25);">
+          <div style="position: relative; width: 64px; height: 64px; margin: 0 auto;">
+            <div class="waiting-spinner-ring" style="width: 64px; height: 64px; border-width: 4px;"></div>
+            <div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 1.5rem;">👨‍🎓</div>
+          </div>
+          
+          <h2 style="font-family: var(--font-heading); font-size: 1.5rem; font-weight: 800; color: #fff; margin-top: 1.2rem; letter-spacing: -0.5px;">
+            Waiting for Teacher Approval
+          </h2>
+          
+          <div style="background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 12px; padding: 14px; margin: 1.2rem 0; text-align: left; display: flex; flex-direction: column; gap: 8px;">
+            <div style="display: flex; justify-content: space-between; font-size: 0.82rem;">
+              <span style="color: #94a3b8;">Candidate:</span>
+              <strong style="color: #fff;">${studentName}</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 0.82rem;">
+              <span style="color: #94a3b8;">Email:</span>
+              <span style="color: #cbd5e1; font-family: var(--font-mono); font-size: 0.78rem;">${studentEmail}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 0.82rem;">
+              <span style="color: #94a3b8;">Target Classroom:</span>
+              <span style="background: rgba(99, 102, 241, 0.2); color: #c7d2fe; font-weight: 700; font-family: var(--font-mono); padding: 2px 8px; border-radius: 6px;">${room}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 0.82rem;">
+              <span style="color: #94a3b8;">Status:</span>
+              <span style="color: #fbbf24; font-weight: 700; display: flex; align-items: center; gap: 5px;">
+                <span class="live-pulse-dot" style="background:#fbbf24; box-shadow:0 0 8px #fbbf24; width:7px; height:7px;"></span>
+                Knocking... Pending Host Approval
+              </span>
+            </div>
+          </div>
+
+          <p style="font-size: 0.82rem; color: #94a3b8; line-height: 1.5; margin-bottom: 1.4rem;">
+            The teacher host (<strong>Dr. Evelyn Reed</strong>) has been notified of your admission request. You will automatically be admitted once approved.
           </p>
-          <div style="display:flex; justify-content:center; margin-top:1.25rem;">
-            <button class="btn-secondary" onclick="document.getElementById('openRoomManagerBtn').click(); classroom.showWaitingLobbyScreen(false);">
-              Cancel / Change Code
+
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <button class="btn-primary" style="width: 100%; justify-content: center; padding: 10px; font-size: 0.88rem;" onclick="window.classroom.showWaitingLobbyScreen(false); window.classroom.joinRoom('${room}'); window.classroom.startCamera('localVideoFeed'); window.showToast('✅ Admitted to classroom!', 'success');">
+              ⚡ Instant Admit (Demo Simulation)
             </button>
+            <div style="display: flex; gap: 8px;">
+              <button class="btn-secondary" style="flex: 1; justify-content: center; font-size: 0.78rem;" onclick="window.location.href='/teacher.html'">
+                👩‍🏫 Open Teacher Suite
+              </button>
+              <button class="btn-secondary" style="flex: 1; justify-content: center; font-size: 0.78rem;" onclick="window.location.href='/index.html'">
+                🚪 Exit to Login
+              </button>
+            </div>
           </div>
         </div>
       `;
@@ -309,16 +360,20 @@ class ClassroomManager {
     const pc = new RTCPeerConnection(ICE_SERVERS);
     this.peerConnections[socketId] = pc;
 
-    // Add local tracks to peer connection
     if (this.localStream) {
       this.localStream.getTracks().forEach(track => {
         pc.addTrack(track, this.localStream);
       });
     }
 
-    // Handle ICE Candidate exchange
+    pc.ontrack = (event) => {
+      const [remoteStream] = event.streams;
+      this.remoteStreams[socketId] = remoteStream;
+      this.renderRemoteVideoTile(socketId, peerName, peerRole, remoteStream);
+    };
+
     pc.onicecandidate = (event) => {
-      if (event.candidate) {
+      if (event.candidate && this.socket) {
         this.socket.emit('webrtc-ice-candidate', {
           targetSocketId: socketId,
           candidate: event.candidate
@@ -326,84 +381,59 @@ class ClassroomManager {
       }
     };
 
-    // Handle incoming remote media stream
-    pc.ontrack = (event) => {
-      console.log(`Received remote track (${event.track.kind}) from ${peerName} (${socketId})`);
-      let remoteStream = this.remoteStreams[socketId];
-      if (!remoteStream) {
-        remoteStream = event.streams && event.streams[0] ? event.streams[0] : new MediaStream();
-        this.remoteStreams[socketId] = remoteStream;
-      }
-      if (!remoteStream.getTracks().includes(event.track)) {
-        remoteStream.addTrack(event.track);
-      }
-      this.renderRemoteVideoTile(socketId, peerName, peerRole, remoteStream);
-    };
-
-    // If initiator, create and send WebRTC offer
     if (isInitiator) {
-      const offer = await pc.createOffer({
-        offerToReceiveAudio: true,
-        offerToReceiveVideo: true
-      });
+      const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
-
-      this.socket.emit('webrtc-offer', {
-        targetSocketId: socketId,
-        offer
-      });
+      if (this.socket) {
+        this.socket.emit('webrtc-offer', {
+          targetSocketId: socketId,
+          callerName: this.currentUser.name,
+          callerRole: this.currentRole,
+          offer
+        });
+      }
     }
 
     return pc;
   }
 
-  setRole(newRole, userName, userEmail) {
+  cleanupSession() {
+    if (this.localStream) {
+      this.localStream.getTracks().forEach(track => {
+        try { track.stop(); } catch(e){}
+      });
+      this.localStream = null;
+    }
+    const localVideo = document.getElementById('localVideoFeed');
+    if (localVideo) localVideo.srcObject = null;
+
+    Object.values(this.peerConnections).forEach(pc => {
+      try { pc.close(); } catch(e){}
+    });
+    this.peerConnections = {};
+    this.remoteStreams = {};
+
+    if (this.proctor) {
+      this.proctor.stopMonitoring();
+      this.proctor = null;
+    }
+
+    this.showWaitingLobbyScreen(false);
+  }
+
+  setRole(newRole, userName = '', userEmail = '') {
+    this.cleanupSession();
+    this.isAuthenticated = true;
     this.currentRole = newRole;
     this.currentUser = {
-      name: userName || (newRole === 'manager' ? 'Executive Manager' : (newRole === 'teacher' ? 'Dr. Evelyn Reed' : 'Alex Johnson')),
-      email: userEmail || `${newRole}@eduguard.edu`,
-      id: newRole === 'manager' ? 'mgr-001' : (newRole === 'teacher' ? 't-001' : 'stu-001'),
+      name: userName || (newRole === 'teacher' ? 'Dr. Evelyn Reed' : 'Alex Johnson'),
+      email: userEmail || (newRole === 'teacher' ? 'teacher@eduguard.edu' : 'student@eduguard.edu'),
+      id: newRole === 'teacher' ? 't-001' : 'stu-001',
       role: newRole
     };
 
     const isTeacher = newRole === 'teacher' || newRole === 'manager';
     const isManager = newRole === 'manager';
-
-    // 1. Toggle Teacher-Only, Manager-Only, and Student-Only UI Elements
-    const teacherOnlyElements = document.querySelectorAll('.teacher-only, .teacher-only-nav');
-    const studentOnlyElements = document.querySelectorAll('.student-only');
-    const managerNav = document.getElementById('navManagerBtn');
-
-    teacherOnlyElements.forEach(el => el.style.display = isTeacher ? '' : 'none');
-    studentOnlyElements.forEach(el => el.style.display = isTeacher ? 'none' : '');
-    if (managerNav) managerNav.style.display = isManager ? '' : 'none';
-
-    // 2. Update Navigation Labels
-    const navAsg = document.getElementById('navAssignmentsBtn');
-    const navTasks = document.getElementById('navTasksBtn');
-    if (navAsg) {
-      navAsg.innerHTML = isTeacher ? '<span>📚</span> Homework & Grading' : '<span>📚</span> My Homework';
-    }
-    if (navTasks) {
-      navTasks.innerHTML = isTeacher ? '<span>📋</span> Task Planner' : '<span>📋</span> My Study Tasks';
-    }
-
-    // 3. Switch view if on restricted tab or auto open manager view
-    const activeNav = document.querySelector('.nav-tab-btn.active');
-    if (!isTeacher && activeNav && activeNav.classList.contains('teacher-only-nav')) {
-      document.querySelector('[data-view="classroom"]')?.click();
-    }
-    if (isManager) {
-      document.querySelector('[data-view="manager"]')?.click();
-      window.managerHub?.loadManagerOverview();
-    }
-
-    // 4. Update Header Profile Card
-    document.getElementById('headerUserName').textContent = this.currentUser.name;
-    document.getElementById('headerUserRole').textContent = isManager ? '🛡️ Executive Manager' : (isTeacher ? 'Teacher (Host & Proctor)' : 'Student Portal');
-    document.getElementById('headerAvatarInitial').textContent = this.currentUser.name.charAt(0).toUpperCase();
-
-    this.switchSidebarTab('chat');
 
     if (isManager) {
       if (this.proctor) this.proctor.stopMonitoring();
@@ -412,49 +442,26 @@ class ClassroomManager {
       this.startCamera('localVideoFeed');
       if (this.proctor) this.proctor.stopMonitoring();
     } else {
-      // Students MUST knock and wait in the lobby until teacher approves
+      // Students knock and wait in lobby
       this.showWaitingLobbyScreen(true, this.currentRoomId);
       this.requestStudentJoin(this.currentRoomId);
     }
   }
 
-  switchSidebarTab(tab) {
-    const chatBtn = document.getElementById('sidebarChatTabBtn');
-    const studentsBtn = document.getElementById('sidebarStudentsTabBtn');
-    const malpBtn = document.getElementById('sidebarMalpracticeTabBtn');
-
-    const chatContent = document.getElementById('chatTabContent');
-    const studentsContent = document.getElementById('studentsTabContent');
-    const malpContent = document.getElementById('malpracticeTabContent');
-
-    [chatBtn, studentsBtn, malpBtn].forEach(b => b?.classList.remove('active'));
-    [chatContent, studentsContent, malpContent].forEach(c => {
-      if (c) c.style.display = 'none';
-    });
-
-    if (tab === 'chat') {
-      chatBtn?.classList.add('active');
-      if (chatContent) chatContent.style.display = 'flex';
-    } else if (tab === 'students' && this.currentRole === 'teacher') {
-      studentsBtn?.classList.add('active');
-      if (studentsContent) studentsContent.style.display = 'flex';
-      this.renderParticipantGrid();
-    } else if (tab === 'malpractice' && this.currentRole === 'teacher') {
-      malpBtn?.classList.add('active');
-      if (malpContent) malpContent.style.display = 'flex';
-    }
-  }
-
   joinRoom(roomId) {
-    if (roomId) this.currentRoomId = roomId;
-    if (!this.socket || !this.socket.connected) return;
-
+    if (roomId) this.currentRoomId = roomId.toUpperCase();
+    if (!this.socket) return;
     this.socket.emit('join-room', {
       roomId: this.currentRoomId,
       role: this.currentRole,
       name: this.currentUser.name,
       studentId: this.currentUser.id
     });
+
+    const label1 = document.getElementById('currentRoomCodeLabel');
+    const label2 = document.getElementById('stageRoomId');
+    if (label1) label1.textContent = this.currentRoomId;
+    if (label2) label2.textContent = this.currentRoomId;
   }
 
   async startCamera(videoElementId = 'localVideoFeed') {
@@ -474,7 +481,6 @@ class ClassroomManager {
             audio: true
           });
         } catch (e1) {
-          // Retry video only if microphone is unavailable
           console.warn('Audio+Video failed, retrying video only:', e1);
           stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
         }
@@ -484,7 +490,6 @@ class ClassroomManager {
           videoEl.srcObject = stream;
           await videoEl.play().catch(e => console.warn('Auto-play caught:', e));
 
-          // Replace / Add tracks to existing WebRTC peer connections
           Object.values(this.peerConnections).forEach(pc => {
             const senders = pc.getSenders();
             stream.getTracks().forEach(track => {
@@ -497,21 +502,20 @@ class ClassroomManager {
             });
           });
 
-          // Mirror to proctoring center inspector video
-          const inspectVideo = document.getElementById('inspectVideoFeed');
+          // Mirror to proctoring center inspector video if present
+          const inspectVideo = document.getElementById('proctorInspectVideo') || document.getElementById('inspectVideoFeed');
           if (inspectVideo) {
             inspectVideo.srcObject = stream;
             inspectVideo.play().catch(() => {});
           }
 
-          // Start proctoring eye
+          // Start proctoring engine for student
           if (this.currentRole === 'student') {
             this.startStudentProctoring();
           }
           return;
         }
       }
-      throw new Error('Camera access not supported on this browser/environment.');
     } catch (err) {
       console.warn('Webcam permission not granted or device not available:', err);
       window.showToast?.('Camera permission needed for live video & proctoring verification.', 'warning');
@@ -520,18 +524,23 @@ class ClassroomManager {
 
   startStudentProctoring() {
     const videoEl = document.getElementById('localVideoFeed');
-    const canvasEl = document.getElementById('aiOverlayCanvas');
+    const canvasEl = document.getElementById('localAiCanvas') || document.getElementById('aiOverlayCanvas');
+
+    if (!window.EduProctorEngine) return;
 
     if (!this.proctor) {
       this.proctor = new EduProctorEngine({
         videoElement: videoEl,
         canvasElement: canvasEl,
         onViolation: (violationData) => {
-          this.socket.emit('malpractice-event', {
-            ...violationData,
-            studentName: this.currentUser.name,
-            studentId: this.currentUser.id
-          });
+          if (this.socket) {
+            this.socket.emit('malpractice-event', {
+              ...violationData,
+              studentName: this.currentUser.name,
+              studentId: this.currentUser.id,
+              roomId: this.currentRoomId
+            });
+          }
           window.showToast?.(`⚠️ Alert: ${violationData.violationType}`, 'danger');
         },
         onTelemetry: (telemetry) => {
@@ -544,84 +553,57 @@ class ClassroomManager {
   }
 
   updateHUDTelemetry(t) {
-    const telemetryBox = document.getElementById('inspectTelemetryBox');
-    if (telemetryBox) {
-      telemetryBox.innerHTML = `
-        <div><strong>AI State:</strong> <span style="color:${t.faceDetected ? '#10b981' : '#ef4444'}">${t.gaze}</span></div>
-        <div><strong>Focus Metric:</strong> ${t.focusScore}%</div>
-        <div><strong>Tab Switched:</strong> ${t.tabSwitches} times</div>
-        <div><strong>Posture Centroid:</strong> (${t.centroid.x.toFixed(2)}, ${t.centroid.y.toFixed(2)})</div>
-      `;
-    }
+    const hudGaze = document.getElementById('hudHeadPose');
+    const hudFocus = document.getElementById('hudFocusMeter');
+    const hudSwitches = document.getElementById('hudTabSwitches');
+    if (hudGaze) hudGaze.textContent = t.gaze;
+    if (hudFocus) hudFocus.textContent = `${t.focusScore}%`;
+    if (hudSwitches) hudSwitches.textContent = `${t.tabSwitches}`;
 
-    const fill = document.getElementById('myFocusFill');
-    const txt = document.getElementById('myFocusText');
+    const fill = document.getElementById('studentFocusFill');
+    const txt = document.getElementById('studentFocusText');
     if (fill) fill.style.width = `${t.focusScore}%`;
     if (txt) txt.textContent = `${t.focusScore}%`;
   }
 
   renderParticipantGrid() {
-    const students = this.participants.filter(p => p.role !== 'teacher');
-    const countBadge = document.getElementById('liveStudentsCountBadge');
-    const rosterCount = document.getElementById('studentsRosterCount');
-
+    const countBadge = document.getElementById('studentCountBadge') || document.getElementById('liveStudentsCountBadge');
     if (countBadge) countBadge.textContent = this.participants.length;
-    if (rosterCount) rosterCount.textContent = students.length;
 
     const rosterList = document.getElementById('studentsRosterList');
-    if (rosterList && this.currentRole === 'teacher') {
-      if (students.length === 0) {
-        rosterList.innerHTML = `
-          <div style="text-align:center; color:#64748b; padding:1.5rem; font-size:0.8rem;">
-            No students currently in session. Share Class Code <strong>${this.currentRoomId}</strong>.
-          </div>
-        `;
+    if (rosterList) {
+      if (this.participants.length === 0) {
+        rosterList.innerHTML = `<div style="text-align:center; color:#64748b; padding:1rem; font-size:0.8rem;">No active participants.</div>`;
       } else {
-        rosterList.innerHTML = students.map(s => {
-          const mediaState = (this.remoteMediaStates && this.remoteMediaStates[s.socketId]) || { audio: true, video: true };
-          return `
-            <div style="background:rgba(15,23,42,0.9); border:1px solid var(--border-subtle); border-radius:var(--radius-sm); padding:8px 10px; display:flex; flex-direction:column; gap:6px;">
-              <div style="display:flex; justify-content:space-between; align-items:center;">
-                <div style="display:flex; align-items:center; gap:8px;">
-                  <div class="user-avatar" style="width:28px; height:28px; font-size:0.75rem;">${s.name.charAt(0).toUpperCase()}</div>
-                  <div>
-                    <strong style="font-size:0.82rem; color:#fff;">${s.name}</strong><br>
-                    <span style="font-size:0.68rem; color:#34d399;">● Connected</span>
-                  </div>
-                </div>
-                <button class="ctrl-btn btn-danger" style="padding:2px 8px; font-size:0.68rem;" onclick="classroom.sendDirectWarning('${s.name}', '${s.socketId}')">
-                  ⚠️ Warn
-                </button>
-              </div>
-
-              <!-- Interactive Mic & Cam Remote Switchers -->
-              <div style="display:flex; gap:6px; margin-top:2px;">
-                <button class="ctrl-btn" style="flex:1; justify-content:center; padding:4px 8px; font-size:0.72rem; ${mediaState.audio ? 'background:rgba(16,185,129,0.15); border-color:#10b981; color:#6ee7b7;' : 'background:rgba(239,68,68,0.15); border-color:#ef4444; color:#fca5a5;'}" onclick="classroom.remoteToggleStudentMedia('${s.socketId}', 'audio')">
-                  ${mediaState.audio ? '🔇 Mute Mic' : '🎙️ Unmute Mic'}
-                </button>
-                <button class="ctrl-btn" style="flex:1; justify-content:center; padding:4px 8px; font-size:0.72rem; ${mediaState.video ? 'background:rgba(59,130,246,0.15); border-color:#3b82f6; color:#93c5fd;' : 'background:rgba(239,68,68,0.15); border-color:#ef4444; color:#fca5a5;'}" onclick="classroom.remoteToggleStudentMedia('${s.socketId}', 'video')">
-                  ${mediaState.video ? '🚫 Cam Off' : '📹 Cam On'}
-                </button>
+        rosterList.innerHTML = this.participants.map(s => `
+          <div style="background:rgba(15,23,42,0.9); border:1px solid var(--border-subtle); border-radius:var(--radius-sm); padding:8px 10px; display:flex; justify-content:space-between; align-items:center;">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <div class="user-avatar" style="width:28px; height:28px; font-size:0.75rem;">${(s.name || 'U').charAt(0).toUpperCase()}</div>
+              <div>
+                <strong style="font-size:0.82rem; color:#fff;">${s.name}</strong><br>
+                <span style="font-size:0.68rem; color:${s.role === 'teacher' ? '#818cf8' : '#34d399'};">● ${s.role.toUpperCase()}</span>
               </div>
             </div>
-          `;
-        }).join('');
+            ${this.currentRole === 'teacher' && s.role !== 'teacher' ? `
+              <button class="ctrl-btn btn-danger" style="padding:2px 8px; font-size:0.68rem;" onclick="window.classroom.sendDirectWarning('${s.name}', '${s.socketId}')">
+                ⚠️ Warn
+              </button>
+            ` : ''}
+          </div>
+        `).join('');
       }
     }
   }
 
   renderRemoteVideoTile(socketId, peerName, peerRole, remoteStream) {
-    const grid = document.getElementById('classroomVideoGrid');
+    const grid = document.getElementById('videoGridContainer') || document.getElementById('classroomVideoGrid');
     if (!grid) return;
 
     let tile = document.getElementById(`tile-${socketId}`);
-    const mediaState = (this.remoteMediaStates && this.remoteMediaStates[socketId]) || { audio: true, video: true };
-
     if (!tile) {
       tile = document.createElement('div');
       tile.className = 'video-tile remote-tile';
       tile.id = `tile-${socketId}`;
-
       tile.innerHTML = `
         <video id="video-${socketId}" autoplay playsinline style="width:100%; height:100%; object-fit:cover; display:block;"></video>
         <div class="video-overlay-top">
@@ -633,24 +615,10 @@ class ClassroomManager {
             ● Live Stream
           </div>
         </div>
-        <div class="video-overlay-bottom" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:4px;">
+        <div class="video-overlay-bottom">
           <div class="focus-meter-mini">
-            <span>Status:</span>
-            <span style="color:#34d399; font-weight:700;">Connected</span>
+            <span>Connected</span>
           </div>
-          ${this.currentRole === 'teacher' ? `
-            <div style="display:flex; gap:3px;">
-              <button id="tile-mic-btn-${socketId}" class="ctrl-btn" style="padding:3px 7px; font-size:0.68rem; ${mediaState.audio ? 'color:#6ee7b7;' : 'color:#fca5a5;'}" onclick="classroom.remoteToggleStudentMedia('${socketId}', 'audio')" title="Teacher Mute/Unmute Student Mic">
-                ${mediaState.audio ? '🔇 Mute' : '🎙️ Unmute'}
-              </button>
-              <button id="tile-cam-btn-${socketId}" class="ctrl-btn" style="padding:3px 7px; font-size:0.68rem; ${mediaState.video ? 'color:#93c5fd;' : 'color:#fca5a5;'}" onclick="classroom.remoteToggleStudentMedia('${socketId}', 'video')" title="Teacher Turn On/Off Student Camera">
-                ${mediaState.video ? '🚫 Cam Off' : '📹 Cam On'}
-              </button>
-              <button class="ctrl-btn btn-danger" style="padding:3px 7px; font-size:0.68rem;" onclick="classroom.sendDirectWarning('${peerName}', '${socketId}')" title="Send Direct Warning">
-                ⚠️ Warn
-              </button>
-            </div>
-          ` : ''}
         </div>
       `;
       grid.appendChild(tile);
@@ -658,132 +626,14 @@ class ClassroomManager {
 
     const videoEl = document.getElementById(`video-${socketId}`);
     if (videoEl && remoteStream) {
-      if (videoEl.srcObject !== remoteStream) {
-        videoEl.srcObject = remoteStream;
-      }
+      videoEl.srcObject = remoteStream;
       videoEl.play().catch(e => console.warn('Remote video play caught:', e));
     }
   }
 
-  remoteToggleStudentMedia(targetSocketId, mediaType) {
-    if (this.currentRole !== 'teacher') return;
-    if (!this.remoteMediaStates) this.remoteMediaStates = {};
-    if (!this.remoteMediaStates[targetSocketId]) {
-      this.remoteMediaStates[targetSocketId] = { audio: true, video: true };
-    }
-
-    const currentState = this.remoteMediaStates[targetSocketId][mediaType];
-    const newState = !currentState;
-    this.remoteMediaStates[targetSocketId][mediaType] = newState;
-
-    this.socket.emit('teacher-control-media', {
-      targetSocketId,
-      mediaType,
-      state: newState
-    });
-
-    // Update Tile Buttons
-    const micBtn = document.getElementById(`tile-mic-btn-${targetSocketId}`);
-    const camBtn = document.getElementById(`tile-cam-btn-${targetSocketId}`);
-    if (mediaType === 'audio' && micBtn) {
-      micBtn.innerHTML = newState ? '🔇 Mute' : '🎙️ Unmute';
-      micBtn.style.color = newState ? '#6ee7b7' : '#fca5a5';
-    } else if (mediaType === 'video' && camBtn) {
-      camBtn.innerHTML = newState ? '🚫 Cam Off' : '📹 Cam On';
-      camBtn.style.color = newState ? '#93c5fd' : '#fca5a5';
-    }
-
-    // Refresh Roster list
-    this.renderParticipantGrid();
-
-    window.showToast?.(`Teacher commanded student ${mediaType === 'audio' ? (newState ? '🎙️ Mic UNMUTED' : '🔇 Mic MUTED') : (newState ? '📹 Cam ENABLED' : '🚫 Cam DISABLED')}.`, 'info');
-  }
-
-  muteAllStudents() {
-    if (this.currentRole !== 'teacher') return;
-    this.socket.emit('teacher-control-media', {
-      roomId: this.currentRoomId,
-      mediaType: 'audio',
-      state: false
-    });
-    window.showToast?.('🔇 Teacher Muted All Students in classroom.', 'warning');
-  }
-
-  forceAllStudentCamsOn() {
-    if (this.currentRole !== 'teacher') return;
-    this.socket.emit('teacher-control-media', {
-      roomId: this.currentRoomId,
-      mediaType: 'video',
-      state: true
-    });
-    window.showToast?.('📹 Teacher requested All Student Cameras ON for Proctoring.', 'info');
-  }
-
-  updateStudentStatusInGrid(studentName, violation) {
-    // Find matching tile by student name
-    const tiles = document.querySelectorAll('.remote-tile');
-    tiles.forEach(tile => {
-      if (tile.textContent.includes(studentName)) {
-        tile.classList.add('malpractice-active');
-        setTimeout(() => tile.classList.remove('malpractice-active'), 8000);
-
-        const pill = tile.querySelector('.status-pill');
-        if (pill) {
-          pill.className = 'status-pill status-danger';
-          pill.textContent = `✖ ${violation}`;
-          setTimeout(() => {
-            pill.className = 'status-pill status-focused';
-            pill.textContent = '● Live Stream';
-          }, 8000);
-        }
-      }
-    });
-  }
-
-  showTeacherTopAlert(incident) {
-    if (this.currentRole !== 'teacher') return;
-
-    const banner = document.getElementById('globalAlertTicker');
-    const txt = document.getElementById('globalAlertText');
-    if (banner && txt) {
-      banner.classList.remove('hidden');
-      txt.innerHTML = `<strong>🚨 MALPRACTICE DETECTED:</strong> Student <u>${incident.studentName}</u> triggered <em>${incident.violationType}</em>! Evidence snapshot captured automatically.`;
-      setTimeout(() => banner.classList.add('hidden'), 10000);
-    }
-  }
-
-  renderIncidentStream() {
-    const container = document.getElementById('malpracticeStreamContainer');
-    if (!container) return;
-
-    if (this.activeIncidents.length === 0) {
-      container.innerHTML = `<div style="text-align:center; color:#64748b; padding:2rem; font-size:0.85rem;">Zero malpractice infractions recorded. AI monitoring active.</div>`;
-      return;
-    }
-
-    container.innerHTML = this.activeIncidents.map(inc => `
-      <div class="incident-card">
-        <div class="incident-header">
-          <span class="incident-student-name">${inc.studentName}</span>
-          <span class="incident-time">${new Date(inc.timestamp).toLocaleTimeString()}</span>
-        </div>
-        <div class="incident-body">
-          <span>⚠️ <strong>${inc.violationType}</strong></span>
-        </div>
-        <div style="font-size:0.75rem; color:#94a3b8;">${inc.details}</div>
-        ${inc.snapshot ? `
-          <img class="incident-snapshot-thumb" src="${inc.snapshot}" alt="Evidence Snapshot" onclick="classroom.previewSnapshotModal('${inc.snapshot}', '${inc.studentName}', '${inc.violationType}')" title="Click to view full snapshot" />
-        ` : ''}
-      </div>
-    `).join('');
-
-    const countBadge = document.getElementById('incidentsCountBadge');
-    if (countBadge) countBadge.textContent = this.activeIncidents.length;
-  }
-
   sendDirectWarning(studentName, targetSocketId) {
-    const reason = prompt(`Enter direct alert message to send to ${studentName}:`, 'Please return your focus to the lecture and stop navigating away.');
-    if (reason) {
+    const reason = prompt(`Enter direct alert message to send to ${studentName}:`, 'Please return your focus to the lecture.');
+    if (reason && this.socket) {
       this.socket.emit('teacher-direct-warning', {
         targetSocketId,
         targetStudentName: studentName,
@@ -793,150 +643,111 @@ class ClassroomManager {
     }
   }
 
-  previewSnapshotModal(snapshotSrc, studentName, violation) {
-    const modal = document.getElementById('snapshotPreviewModal');
-    const img = document.getElementById('snapshotModalImg');
-    const title = document.getElementById('snapshotModalTitle');
+  muteAllStudents() {
+    if (this.currentRole !== 'teacher' || !this.socket) return;
+    this.socket.emit('teacher-control-media', {
+      roomId: this.currentRoomId,
+      mediaType: 'audio',
+      state: false
+    });
+    window.showToast?.('🔇 Muted all students in classroom.', 'warning');
+  }
 
-    if (modal && img) {
-      img.src = snapshotSrc;
-      title.textContent = `Evidence Snapshot: ${studentName} - ${violation}`;
-      modal.classList.add('active');
+  forceAllStudentCamsOn() {
+    if (this.currentRole !== 'teacher' || !this.socket) return;
+    this.socket.emit('teacher-control-media', {
+      roomId: this.currentRoomId,
+      mediaType: 'video',
+      state: true
+    });
+    window.showToast?.('📹 Requested all student cameras ON.', 'info');
+  }
+
+  showTeacherTopAlert(incident) {
+    const ticker = document.getElementById('globalAlertTicker');
+    const txt = document.getElementById('globalAlertText');
+    if (ticker && txt) {
+      txt.innerHTML = `🚨 <strong>MALPRACTICE ALERT:</strong> ${incident.studentName} - ${incident.violationType} (${incident.details})`;
+      ticker.classList.remove('hidden');
     }
   }
 
+  renderIncidentStream() {
+    const container = document.getElementById('sidebarIncidentsList') || document.getElementById('malpracticeStreamContainer');
+    const badge = document.getElementById('alertCountBadge');
+    if (badge) badge.textContent = this.activeIncidents.length;
+    if (!container) return;
+
+    if (this.activeIncidents.length === 0) {
+      container.innerHTML = `<div style="text-align:center; color:#64748b; padding:1.5rem 0; font-size:0.8rem;">No malpractice incidents logged in this session.</div>`;
+      return;
+    }
+
+    container.innerHTML = this.activeIncidents.map(inc => `
+      <div class="incident-card">
+        <div class="incident-header">
+          <span class="incident-student-name">${inc.studentName}</span>
+          <span class="incident-time">${new Date(inc.timestamp || Date.now()).toLocaleTimeString()}</span>
+        </div>
+        <div style="font-size:0.82rem; font-weight:700; color:#fb7185;">⚠️ ${inc.violationType}</div>
+        <div style="font-size:0.75rem; color:#94a3b8;">${inc.details}</div>
+      </div>
+    `).join('');
+  }
+
+  updateStudentStatusInGrid(studentName, violation) {
+    const tiles = document.querySelectorAll('.video-tile');
+    tiles.forEach(tile => {
+      if (tile.textContent.includes(studentName)) {
+        tile.classList.add('malpractice-active');
+        setTimeout(() => tile.classList.remove('malpractice-active'), 5000);
+      }
+    });
+  }
+
   initClassroomDOM() {
-    // Hardware Microphone Toggle (Full Hardware Release / Privacy Indicator power off)
-    document.getElementById('micToggleBtn')?.addEventListener('click', async (e) => {
+    // 1. Audio Toggle Button
+    const audioBtn = document.getElementById('ctrlToggleAudioBtn') || document.getElementById('micToggleBtn');
+    audioBtn?.addEventListener('click', async () => {
       this.isMuted = !this.isMuted;
-      const btn = e.currentTarget;
-
-      if (this.isMuted) {
-        // 1. Physically STOP all active audio tracks so hardware mic sensor releases completely
-        if (this.localStream) {
-          this.localStream.getAudioTracks().forEach(track => {
-            track.stop(); // Releases audio hardware lock and turns off recording indicator
-          });
-        }
-
-        // 2. Inform WebRTC peers that audio track is stopped
-        Object.values(this.peerConnections).forEach(pc => {
-          const sender = pc.getSenders().find(s => s.track && s.track.kind === 'audio');
-          if (sender) {
-            sender.replaceTrack(null);
-          }
-        });
-
-        btn.classList.remove('btn-active');
-        btn.innerHTML = '🔇 Mic Muted';
-        window.showToast?.('Microphone hardware turned off (recording released).', 'info');
-      } else {
-        // Re-acquire physical microphone device & re-attach live audio track
-        btn.classList.add('btn-active');
-        btn.innerHTML = '🎙️ Mic Active';
-        window.showToast?.('Activating microphone...', 'info');
-
-        try {
-          const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          const newAudioTrack = audioStream.getAudioTracks()[0];
-
-          if (this.localStream) {
-            // Remove old stopped tracks
-            this.localStream.getAudioTracks().forEach(t => this.localStream.removeTrack(t));
-            this.localStream.addTrack(newAudioTrack);
-          } else {
-            this.localStream = audioStream;
-          }
-
-          // Re-attach new audio track to all active WebRTC peer connections
-          Object.values(this.peerConnections).forEach(pc => {
-            const sender = pc.getSenders().find(s => s.track && s.track.kind === 'audio');
-            if (sender) {
-              sender.replaceTrack(newAudioTrack);
-            } else {
-              pc.addTrack(newAudioTrack, this.localStream);
-            }
-          });
-
-          window.showToast?.('Microphone active and streaming.', 'success');
-        } catch (err) {
-          console.warn('Failed to re-acquire microphone:', err);
-          btn.classList.remove('btn-active');
-          btn.innerHTML = '🔇 Mic Muted';
-          this.isMuted = true;
-          window.showToast?.('Could not access microphone device.', 'warning');
-        }
+      if (this.localStream) {
+        this.localStream.getAudioTracks().forEach(t => t.enabled = !this.isMuted);
       }
+      audioBtn.classList.toggle('btn-active', !this.isMuted);
+      const label = document.getElementById('audioBtnLabel');
+      if (label) label.textContent = this.isMuted ? 'Mic Muted' : 'Mic Active';
+      window.showToast?.(this.isMuted ? 'Microphone muted.' : 'Microphone active.', 'info');
     });
 
-    // Hardware Camera Toggle (Full Hardware Release / LED power off)
-    document.getElementById('camToggleBtn')?.addEventListener('click', async (e) => {
+    // 2. Video Toggle Button
+    const videoBtn = document.getElementById('ctrlToggleVideoBtn') || document.getElementById('camToggleBtn');
+    videoBtn?.addEventListener('click', async () => {
       this.isVideoOff = !this.isVideoOff;
-      const btn = e.currentTarget;
-
-      if (this.isVideoOff) {
-        // 1. Physically STOP all active video tracks so hardware sensor & LED power off completely
-        if (this.localStream) {
-          this.localStream.getVideoTracks().forEach(track => {
-            track.stop(); // Releases hardware lock and turns off physical LED
-          });
-        }
-
-        // 2. Clear video element source
-        const localVideo = document.getElementById('localVideoFeed');
-        if (localVideo) {
-          localVideo.srcObject = null;
-        }
-
-        // 3. Inform WebRTC peers that video track is stopped
-        Object.values(this.peerConnections).forEach(pc => {
-          const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
-          if (sender) {
-            sender.replaceTrack(null);
-          }
-        });
-
-        // 4. Clear overlay canvas
-        const overlayCanvas = document.getElementById('aiOverlayCanvas');
-        if (overlayCanvas) {
-          const ctx = overlayCanvas.getContext('2d');
-          ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-        }
-
-        btn.classList.remove('btn-active');
-        btn.innerHTML = '🚫 Cam Off';
-        window.showToast?.('Camera hardware turned off (LED disabled).', 'info');
-      } else {
-        // Re-acquire physical camera device & restart video streaming
-        btn.classList.add('btn-active');
-        btn.innerHTML = '📹 Cam On';
-        window.showToast?.('Initializing camera...', 'info');
-        await this.startCamera('localVideoFeed');
+      if (this.localStream) {
+        this.localStream.getVideoTracks().forEach(t => t.enabled = !this.isVideoOff);
       }
+      videoBtn.classList.toggle('btn-active', !this.isVideoOff);
+      const label = document.getElementById('videoBtnLabel');
+      if (label) label.textContent = this.isVideoOff ? 'Cam Off' : 'Cam On';
+      window.showToast?.(this.isVideoOff ? 'Camera turned off.' : 'Camera turned on.', 'info');
     });
 
-    // Screen Share Toggle
-    document.getElementById('screenShareBtn')?.addEventListener('click', async (e) => {
+    // 3. Screen Share
+    const screenBtn = document.getElementById('ctrlShareScreenBtn') || document.getElementById('screenShareBtn');
+    screenBtn?.addEventListener('click', async () => {
       try {
         if (!this.isScreenSharing) {
           const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
           const screenTrack = screenStream.getVideoTracks()[0];
-
           Object.values(this.peerConnections).forEach(pc => {
             const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
             if (sender) sender.replaceTrack(screenTrack);
           });
-
           const localVideo = document.getElementById('localVideoFeed');
           if (localVideo) localVideo.srcObject = screenStream;
-
-          screenTrack.onended = () => {
-            this.stopScreenSharing();
-          };
-
+          screenTrack.onended = () => this.stopScreenSharing();
           this.isScreenSharing = true;
-          e.currentTarget.classList.add('btn-active');
-          e.currentTarget.innerHTML = '🖥️ Stop Sharing';
+          screenBtn.classList.add('btn-active');
           window.showToast?.('Screen sharing active', 'info');
         } else {
           this.stopScreenSharing();
@@ -946,52 +757,97 @@ class ClassroomManager {
       }
     });
 
-    // Hand Raise Toggle
-    document.getElementById('handRaiseBtn')?.addEventListener('click', (e) => {
+    // 4. Hand Raise (Student)
+    const handBtn = document.getElementById('ctrlRaiseHandBtn') || document.getElementById('handRaiseBtn');
+    handBtn?.addEventListener('click', () => {
       this.handRaised = !this.handRaised;
-      this.socket.emit('toggle-hand', { raised: this.handRaised });
-      e.currentTarget.classList.toggle('btn-active', this.handRaised);
-      e.currentTarget.innerHTML = this.handRaised ? '✋ Hand Raised' : '✋ Raise Hand';
+      if (this.socket) {
+        this.socket.emit('toggle-hand', { raised: this.handRaised, name: this.currentUser.name });
+      }
+      handBtn.classList.toggle('btn-active', this.handRaised);
+      const label = document.getElementById('raiseHandLabel');
+      if (label) label.textContent = this.handRaised ? 'Hand Raised' : 'Raise Hand';
     });
 
-    // Chat submit
-    document.getElementById('chatForm')?.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const input = document.getElementById('chatInput');
-      const text = input.value.trim();
-      if (text) {
-        this.socket.emit('send-chat', { message: text });
-        input.value = '';
+    // 5. Teacher Command Buttons
+    document.getElementById('ctrlMuteAllBtn')?.addEventListener('click', () => this.muteAllStudents());
+    document.getElementById('ctrlRequestCamsBtn')?.addEventListener('click', () => this.forceAllStudentCamsOn());
+    document.getElementById('ctrlEndClassBtn')?.addEventListener('click', () => {
+      if (confirm('End this classroom session for all students and generate final report?')) {
+        if (this.socket) {
+          this.socket.emit('teacher-end-session', { roomId: this.currentRoomId });
+        }
+        window.showToast?.('Classroom session ended.', 'success');
+        document.querySelector('[data-view="reports"]')?.click();
       }
     });
 
-    // Mode tab toggle (Video Grid vs Whiteboard)
-    document.querySelectorAll('.mode-tab-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        document.querySelectorAll('.mode-tab-btn').forEach(b => b.classList.remove('active'));
-        e.currentTarget.classList.add('active');
-        const mode = e.currentTarget.dataset.mode;
+    // 6. Mode Tabs (Video vs Whiteboard)
+    const modeVideoBtn = document.getElementById('modeVideoBtn');
+    const modeWbBtn = document.getElementById('modeWhiteboardBtn');
+    const videoGrid = document.getElementById('videoGridContainer') || document.getElementById('classroomVideoGrid');
+    const wbContainer = document.getElementById('whiteboardContainer') || document.getElementById('classroomWhiteboardStage');
 
-        if (mode === 'whiteboard') {
-          document.getElementById('classroomVideoGrid').style.display = 'none';
-          document.getElementById('classroomWhiteboardStage').classList.add('active');
-          this.resizeWhiteboard();
-        } else {
-          document.getElementById('classroomVideoGrid').style.display = 'grid';
-          document.getElementById('classroomWhiteboardStage').classList.remove('active');
-        }
+    modeVideoBtn?.addEventListener('click', () => {
+      modeVideoBtn.classList.add('active');
+      modeWbBtn?.classList.remove('active');
+      if (videoGrid) videoGrid.style.display = 'grid';
+      if (wbContainer) wbContainer.style.display = 'none';
+    });
+
+    modeWbBtn?.addEventListener('click', () => {
+      modeWbBtn.classList.add('active');
+      modeVideoBtn?.classList.remove('active');
+      if (videoGrid) videoGrid.style.display = 'none';
+      if (wbContainer) wbContainer.style.display = 'flex';
+      this.resizeWhiteboard();
+    });
+
+    // 7. Sidebar Tabs (Chat vs Students vs Alerts)
+    document.querySelectorAll('.sidebar-tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tab = btn.dataset.tab;
+        document.querySelectorAll('.sidebar-tab-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+
+        const chatPanel = document.getElementById('sidebarPanelChat');
+        const studentsPanel = document.getElementById('sidebarPanelStudents');
+        const alertsPanel = document.getElementById('sidebarPanelAlerts');
+
+        if (chatPanel) chatPanel.style.display = tab === 'chat' ? 'flex' : 'none';
+        if (studentsPanel) studentsPanel.style.display = tab === 'students' ? 'block' : 'none';
+        if (alertsPanel) alertsPanel.style.display = tab === 'alerts' ? 'block' : 'none';
       });
+    });
+
+    // 8. Chat Form
+    const chatForm = document.getElementById('chatInputForm') || document.getElementById('chatForm');
+    chatForm?.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const input = document.getElementById('chatMessageInput') || document.getElementById('chatInput');
+      const text = input?.value.trim();
+      if (text && this.socket) {
+        const msg = {
+          roomId: this.currentRoomId,
+          senderName: this.currentUser.name || 'User',
+          senderRole: this.currentRole || 'student',
+          message: text,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        };
+        this.socket.emit('send-chat', msg);
+        this.appendChatMessage(msg);
+        if (input) input.value = '';
+      }
     });
   }
 
   stopScreenSharing() {
     this.isScreenSharing = false;
-    const btn = document.getElementById('screenShareBtn');
+    const btn = document.getElementById('ctrlShareScreenBtn') || document.getElementById('screenShareBtn');
     if (btn) {
       btn.classList.remove('btn-active');
-      btn.innerHTML = '🖥️ Share Screen';
+      btn.innerHTML = '<span>🖥️</span> Share Screen';
     }
-
     if (this.localStream) {
       const camTrack = this.localStream.getVideoTracks()[0];
       Object.values(this.peerConnections).forEach(pc => {
@@ -1011,16 +867,13 @@ class ClassroomManager {
     const bubble = document.createElement('div');
     bubble.className = `chat-bubble ${isSelf ? 'self' : msg.senderRole}`;
     bubble.innerHTML = `
-      <div class="chat-sender">${isSelf ? 'You' : msg.senderName} (${msg.senderRole}) • ${msg.timestamp}</div>
+      <div class="chat-sender">${isSelf ? 'You' : msg.senderName} (${msg.senderRole || ''}) • ${msg.timestamp || ''}</div>
       <div class="chat-text">${msg.message}</div>
     `;
     box.appendChild(bubble);
     box.scrollTop = box.scrollHeight;
   }
 
-  // ==========================================
-  // Interactive Whiteboard Engine
-  // ==========================================
   initWhiteboard() {
     const canvas = document.getElementById('whiteboardCanvas');
     if (!canvas) return;
@@ -1046,14 +899,17 @@ class ClassroomManager {
 
       this.drawLocalLine(this.lastX, this.lastY, pos.x, pos.y, this.brushColor, this.brushSize);
 
-      this.socket.emit('whiteboard-draw', {
-        x0: this.lastX,
-        y0: this.lastY,
-        x1: pos.x,
-        y1: pos.y,
-        color: this.brushColor,
-        size: this.brushSize
-      });
+      if (this.socket) {
+        this.socket.emit('whiteboard-draw', {
+          roomId: this.currentRoomId,
+          x0: this.lastX,
+          y0: this.lastY,
+          x1: pos.x,
+          y1: pos.y,
+          color: this.brushColor,
+          size: this.brushSize
+        });
+      }
 
       this.lastX = pos.x;
       this.lastY = pos.y;
@@ -1068,11 +924,25 @@ class ClassroomManager {
     document.getElementById('wbClearBtn')?.addEventListener('click', () => {
       this.clearWhiteboardCanvas(true);
     });
+
+    document.getElementById('wbPenBtn')?.addEventListener('click', () => {
+      this.brushSize = 3;
+      this.brushColor = document.getElementById('wbColorPicker')?.value || '#6366f1';
+      document.getElementById('wbPenBtn')?.classList.add('active');
+      document.getElementById('wbEraserBtn')?.classList.remove('active');
+    });
+
+    document.getElementById('wbEraserBtn')?.addEventListener('click', () => {
+      this.brushSize = 20;
+      this.brushColor = '#0f172a';
+      document.getElementById('wbEraserBtn')?.classList.add('active');
+      document.getElementById('wbPenBtn')?.classList.remove('active');
+    });
   }
 
   resizeWhiteboard() {
     const canvas = document.getElementById('whiteboardCanvas');
-    if (canvas) {
+    if (canvas && canvas.parentElement) {
       canvas.width = canvas.parentElement.clientWidth || 800;
       canvas.height = canvas.parentElement.clientHeight || 500;
     }
@@ -1095,125 +965,17 @@ class ClassroomManager {
     this.drawLocalLine(data.x0, data.y0, data.x1, data.y1, data.color, data.size);
   }
 
-  clearWhiteboardCanvas(broadcast = true) {
+  clearWhiteboardCanvas(emit = true) {
     const canvas = document.getElementById('whiteboardCanvas');
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    if (broadcast && this.socket) {
-      this.socket.emit('whiteboard-clear');
-    }
-  }
-
-  handleSessionEndedByTeacher(data) {
-    console.log('[CLASSROOM] Session ended by teacher:', data);
-
-    // Stop local media stream (camera & mic)
-    if (this.localStream) {
-      this.localStream.getTracks().forEach(track => {
-        try { track.stop(); } catch(e) {}
-      });
-      this.localStream = null;
-    }
-    const localVideo = document.getElementById('localVideoFeed');
-    if (localVideo) {
-      localVideo.srcObject = null;
-    }
-
-    // Close all active WebRTC peer connections
-    Object.keys(this.peerConnections).forEach(socketId => {
-      try {
-        this.peerConnections[socketId].close();
-      } catch (e) {}
-      delete this.peerConnections[socketId];
-    });
-
-    this.participants = [];
-    this.renderParticipantGrid();
-
-    // If current user is a student, alert them and return to dashboard
-    if (this.currentRole === 'student') {
-      alert(`🔴 Class Concluded\n\n${data.message || 'The teacher has ended the live classroom session.'}\n\nYou have been automatically disconnected.`);
-      window.showToast?.('The teacher has ended the classroom session.', 'warning');
-      document.querySelector('[data-view="assignments"]')?.click();
-    }
-  }
-
-  async leaveMeetingAndExportPdf() {
-    const isTeacher = this.currentRole === 'teacher';
-    const confirmMsg = isTeacher 
-      ? `🔴 Conclude Classroom Session ${this.currentRoomId}?\n\nThis will automatically end the meeting for all connected students and generate the Official PDF Report with all violation logs and photo evidence.`
-      : `Leave classroom session ${this.currentRoomId}?`;
-
-    if (!confirm(confirmMsg)) return;
-
-    window.showToast?.('📑 Concluding session for all students & compiling Official PDF Report...', 'info');
-
-    if (isTeacher) {
-      // Stop teacher local media (student notification happens via the REST endpoint below)
-      if (this.localStream) {
-        this.localStream.getTracks().forEach(track => {
-          try { track.stop(); } catch(e) {}
-        });
-        this.localStream = null;
-      }
-      const localVideo = document.getElementById('localVideoFeed');
-      if (localVideo) localVideo.srcObject = null;
-
-      // 2. Close peer connections
-      Object.keys(this.peerConnections).forEach(socketId => {
-        try { this.peerConnections[socketId].close(); } catch(e){}
-        delete this.peerConnections[socketId];
-      });
-
-      this.participants = [];
-      this.renderParticipantGrid();
-
-      // 3. Call API to archive session (this also broadcasts session-ended-by-teacher to all students)
-      try {
-        const res = await fetch('/api/reports/end-session-archive', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            roomId: this.currentRoomId,
-            teacherName: this.currentUser?.name || 'Faculty Teacher',
-            durationMinutes: 45
-          })
-        });
-        const data = await res.json();
-        if (data.success) {
-          window.showToast?.('✅ Meeting ended for all students. PDF Report ready!', 'success');
-          // Navigate to Reports tab
-          document.querySelector('[data-view="reports"]')?.click();
-          if (window.reportHub) {
-            window.reportHub.renderReport(data.data);
-            window.reportHub.load7DayPdfArchives();
-          }
-        }
-      } catch (err) {
-        console.error('Failed to archive session on exit:', err);
-      }
-    } else {
-      // Student leaving individually
-      if (this.localStream) {
-        this.localStream.getTracks().forEach(track => {
-          try { track.stop(); } catch(e) {}
-        });
-        this.localStream = null;
-      }
-      const localVideo = document.getElementById('localVideoFeed');
-      if (localVideo) localVideo.srcObject = null;
-
-      Object.keys(this.peerConnections).forEach(socketId => {
-        try { this.peerConnections[socketId].close(); } catch(e){}
-        delete this.peerConnections[socketId];
-      });
-
-      window.showToast?.('You have left the classroom session.', 'info');
-      document.querySelector('[data-view="assignments"]')?.click();
+    if (emit && this.socket) {
+      this.socket.emit('whiteboard-clear', { roomId: this.currentRoomId });
     }
   }
 }
 
+// Instantiate globally
 window.ClassroomManager = ClassroomManager;
+window.classroom = new ClassroomManager();

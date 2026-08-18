@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EduGuard AI | Executive Manager & Super Admin Suite</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220%22%3E<text y=%2226%22 font-size=%2226%22>🛡️</text></svg>">
+</head>
+<body>
+
+  <!-- App Header & Navigation -->
+  <header class="app-header">
+    <div class="brand-container">
+      <div class="brand-logo">🎓</div>
+      <div>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span class="brand-title">EduGuard AI</span>
+          <span class="brand-badge" style="background:rgba(239,68,68,0.15); border-color:rgba(239,68,68,0.4); color:#fca5a5;">SUPER ADMIN</span>
+        </div>
+      </div>
+      <div class="creator-badge">
+        <span>✨</span>
+        <span>Creator: <strong style="color:#38bdf8;">Manas Kumar</strong></span>
+      </div>
+    </div>
+
+    <!-- Manager Navigation Tabs -->
+    <nav class="nav-tabs">
+      <button class="nav-tab-btn active" data-view="manager">
+        <span>🛡️</span> Executive Master Control Suite
+      </button>
+    </nav>
+
+    <!-- Header Right -->
+    <div class="header-right">
+      <!-- Quick Switch Pill -->
+      <div class="role-switch-pills">
+        <button class="role-pill-btn" onclick="window.location.href='/teacher.html'">👩‍🏫 Teacher</button>
+        <button class="role-pill-btn" onclick="window.location.href='/student.html'">👨‍🎓 Student</button>
+        <button class="role-pill-btn active" onclick="window.location.href='/manager.html'">🛡️ Manager</button>
+      </div>
+
+      <div class="user-profile-badge">
+        <div class="user-avatar" id="headerAvatarInitial" style="background:linear-gradient(135deg,#ef4444,#f59e0b);">M</div>
+        <div>
+          <span class="user-name" id="headerUserName">Executive Manager</span>
+          <span class="user-role-label" id="headerUserRole">Super Administrator</span>
+        </div>
+      </div>
+
+      <button id="headerLogoutBtn" class="logout-btn" title="Sign out to Login Portal">
+        <span>🚪</span> Exit
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Content Container -->
+  <main class="app-container">
+    
+    <section id="view-manager" class="view-section active">
+      <div style="display:flex; flex-direction:column; gap:1.5rem;">
+        
+        <!-- Master Suite Banner -->
+        <div style="background:linear-gradient(135deg, rgba(239,68,68,0.12), rgba(99,102,241,0.12)); border:1px solid rgba(239,68,68,0.3); border-radius:var(--radius-lg); padding:1.8rem 2rem; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
+          <div>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="font-size:1.6rem;">🛡️</span>
+              <h2 style="font-family:var(--font-heading); font-size:1.6rem; font-weight:800; color:#fff;">Executive Manager Master Suite</h2>
+            </div>
+            <p style="color:#cbd5e1; font-size:0.85rem; margin-top:4px;">
+              Super Administrator bypass controls, global password overrides, system security policies, and institutional auditing.
+            </p>
+          </div>
+          <div style="display:flex; gap:10px;">
+            <button id="mgrExportDbBtn" class="btn-primary" style="background:linear-gradient(135deg,#4f46e5,#6366f1);">
+              💾 Export Database Backup
+            </button>
+            <button id="mgrResetSystemBtn" class="btn-danger">
+              ⚠️ Reset System Logs
+            </button>
+          </div>
+        </div>
+
+        <!-- Manager Quick Metrics -->
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-icon-wrapper">👥</div>
+            <div>
+              <span class="stat-value" id="mgrTotalUsersCount">3</span>
+              <span class="stat-label">Total Registered Accounts</span>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon-wrapper">🏫</div>
+            <div>
+              <span class="stat-value" id="mgrActiveRoomsCount">1</span>
+              <span class="stat-label">Live Active Classrooms</span>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon-wrapper">📚</div>
+            <div>
+              <span class="stat-value" id="mgrTotalAsgCount">1</span>
+              <span class="stat-label">System Assignments</span>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon-wrapper">🚨</div>
+            <div>
+              <span class="stat-value" id="mgrTotalLogsCount" style="color:#fb7185;">0</span>
+              <span class="stat-label">Malpractice Incident Logs</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Management Action Cards Grid (4 Column) -->
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:1.25rem;">
+          
+          <!-- Card 1: Zero-OTP Bypass Account Registration -->
+          <div style="background:var(--bg-glass); border:1px solid rgba(99,102,241,0.25); border-radius:var(--radius-md); padding:1.25rem;">
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
+              <span style="font-size:1.2rem;">⚡</span>
+              <h3 style="font-size:1rem; font-weight:700; color:#fff;">Zero-OTP User Provisioning</h3>
+            </div>
+            <p style="font-size:0.78rem; color:var(--text-muted); margin-bottom:12px;">Instantly register new Teacher or Student accounts bypassing email verification.</p>
+            <form id="mgrBypassRegisterForm" style="display:flex; flex-direction:column; gap:10px;">
+              <input type="text" id="mgrNewName" class="form-input" placeholder="Full Name (e.g. Prof. Alan Turing)" required />
+              <input type="email" id="mgrNewEmail" class="form-input" placeholder="user@eduguard.edu" required />
+              <input type="password" id="mgrNewPassword" class="form-input" placeholder="Initial Password (EduGuard@2026)" value="EduGuard@2026" required />
+              <select id="mgrNewRole" class="form-select">
+                <option value="teacher">👩‍🏫 Teacher / Invigilator</option>
+                <option value="student">👨‍🎓 Student / Candidate</option>
+              </select>
+              <button type="submit" class="btn-primary" style="margin-top:4px;">✨ Provision User Instantly</button>
+            </form>
+          </div>
+
+          <!-- Card 2: Global Password Override -->
+          <div style="background:var(--bg-glass); border:1px solid rgba(245,158,11,0.25); border-radius:var(--radius-md); padding:1.25rem;">
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
+              <span style="font-size:1.2rem;">🔑</span>
+              <h3 style="font-size:1rem; font-weight:700; color:#fff;">Global Password Override</h3>
+            </div>
+            <p style="font-size:0.78rem; color:var(--text-muted); margin-bottom:12px;">Override and reset passwords for any locked-out user without OTP.</p>
+            <form id="mgrPasswordOverrideForm" style="display:flex; flex-direction:column; gap:10px;">
+              <input type="email" id="mgrOverrideEmail" class="form-input" placeholder="Target Account Email" required />
+              <input type="password" id="mgrOverrideNewPassword" class="form-input" placeholder="New Password (min 8 chars)" value="EduGuard@2026" required />
+              <button type="submit" class="btn-secondary" style="border-color:#f59e0b; color:#fbbf24; margin-top:auto;">
+                🔓 Force Reset Password
+              </button>
+            </form>
+          </div>
+
+          <!-- Card 3: System Policy Flags -->
+          <div style="background:var(--bg-glass); border:1px solid rgba(16,185,129,0.25); border-radius:var(--radius-md); padding:1.25rem;">
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
+              <span style="font-size:1.2rem;">⚙️</span>
+              <h3 style="font-size:1rem; font-weight:700; color:#fff;">System Integrity Policies</h3>
+            </div>
+            <p style="font-size:0.78rem; color:var(--text-muted); margin-bottom:12px;">Configure global platform parameters and enforcement rules.</p>
+            <div style="display:flex; flex-direction:column; gap:10px; font-size:0.82rem;">
+              <label style="display:flex; align-items:center; justify-content:space-between;">
+                <span>Require Email OTP for Registration</span>
+                <input type="checkbox" id="policyRequireOtp" checked />
+              </label>
+              <label style="display:flex; align-items:center; justify-content:space-between;">
+                <span>Auto-Flag Gaze Drift Violations (>3.5s)</span>
+                <input type="checkbox" id="policyAutoFlagGaze" checked />
+              </label>
+              <label style="display:flex; align-items:center; justify-content:space-between;">
+                <span>7-Day Data Retention Pruning Active</span>
+                <input type="checkbox" id="policyDataRetention" checked />
+              </label>
+              <button id="mgrSavePoliciesBtn" class="btn-primary" style="margin-top:8px;">💾 Save Policy Settings</button>
+            </div>
+          </div>
+
+          <!-- Card 4: Emergency Live Broadcast -->
+          <div style="background:var(--bg-glass); border:1px solid rgba(239,68,68,0.25); border-radius:var(--radius-md); padding:1.25rem;">
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
+              <span style="font-size:1.2rem;">📢</span>
+              <h3 style="font-size:1rem; font-weight:700; color:#fff;">Emergency Alert Broadcast</h3>
+            </div>
+            <p style="font-size:0.78rem; color:var(--text-muted); margin-bottom:12px;">Push high-priority banner notifications across all live active classroom screens.</p>
+            <form id="mgrBroadcastForm" style="display:flex; flex-direction:column; gap:10px;">
+              <input type="text" id="mgrBroadcastMessage" class="form-input" placeholder="e.g. System maintenance scheduled in 15 mins." required />
+              <button type="submit" class="btn-danger" style="margin-top:auto;">🚨 Broadcast to All Classes</button>
+            </form>
+          </div>
+
+        </div>
+
+        <!-- Users Management Table -->
+        <div class="audit-table-card" style="background:var(--bg-glass); border:1px solid rgba(99,102,241,0.25); border-radius:var(--radius-lg); padding:1.5rem; box-shadow:var(--shadow-md);">
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:16px;">
+            <div>
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span style="font-size:1.3rem;">👥</span>
+                <h3 style="font-size:1.15rem; font-weight:800; color:#fff; font-family:var(--font-heading);">Registered Institutional Accounts</h3>
+                <span id="mgrUsersBadgeCount" class="status-pill status-focused" style="font-size:0.75rem;">0 Total</span>
+              </div>
+              <p style="font-size:0.8rem; color:var(--text-muted); margin-top:2px;">
+                Full directory of verified teachers, students, and administrators with instant permission to provision, audit, or remove accounts.
+              </p>
+            </div>
+            
+            <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+              <!-- Role Filter Tabs -->
+              <div class="role-filter-group" style="display:flex; background:rgba(15,23,42,0.8); border:1px solid var(--border-subtle); border-radius:var(--radius-sm); padding:3px; gap:4px;">
+                <button class="mgr-filter-btn active" data-filter="all" style="background:var(--accent-primary); color:#fff; border:none; border-radius:var(--radius-xs); padding:4px 10px; font-size:0.75rem; font-weight:600; cursor:pointer;">
+                  All (<span id="cntAll">0</span>)
+                </button>
+                <button class="mgr-filter-btn" data-filter="teacher" style="background:transparent; color:var(--text-muted); border:none; border-radius:var(--radius-xs); padding:4px 10px; font-size:0.75rem; font-weight:600; cursor:pointer;">
+                  👩‍🏫 Teachers (<span id="cntTeachers">0</span>)
+                </button>
+                <button class="mgr-filter-btn" data-filter="student" style="background:transparent; color:var(--text-muted); border:none; border-radius:var(--radius-xs); padding:4px 10px; font-size:0.75rem; font-weight:600; cursor:pointer;">
+                  👨‍🎓 Students (<span id="cntStudents">0</span>)
+                </button>
+                <button class="mgr-filter-btn" data-filter="manager" style="background:transparent; color:var(--text-muted); border:none; border-radius:var(--radius-xs); padding:4px 10px; font-size:0.75rem; font-weight:600; cursor:pointer;">
+                  🛡️ Managers (<span id="cntManagers">0</span>)
+                </button>
+              </div>
+
+              <!-- Search Bar -->
+              <div style="position:relative; display:flex; align-items:center;">
+                <input type="text" id="mgrSearchUsersInput" class="form-input" placeholder="🔍 Search name, email, role..." style="min-width:240px; padding:7px 12px; font-size:0.82rem; border-radius:var(--radius-sm);" />
+              </div>
+            </div>
+          </div>
+
+          <div style="overflow-x:auto;">
+            <table class="custom-table" style="width:100%; border-collapse:collapse; text-align:left;">
+              <thead>
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.1); color:var(--text-muted); font-size:0.78rem; text-transform:uppercase; letter-spacing:0.5px;">
+                  <th style="padding:10px 12px;">User Profile</th>
+                  <th style="padding:10px 12px;">Role</th>
+                  <th style="padding:10px 12px;">Institutional Email</th>
+                  <th style="padding:10px 12px;">Institution</th>
+                  <th style="padding:10px 12px;">Status</th>
+                  <th style="padding:10px 12px; text-align:right;">Actions / Permissions</th>
+                </tr>
+              </thead>
+              <tbody id="mgrUsersTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- System Malpractice Audit Logs -->
+        <div class="audit-table-card">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+            <h3 style="font-size:1.05rem; font-weight:700; color:#fff;">System Malpractice Incident Audit Trail</h3>
+            <button id="mgrClearLogsBtn" class="btn-secondary" style="font-size:0.75rem; color:#fb7185; border-color:rgba(239,68,68,0.4);">
+              🗑️ Clear All Logs
+            </button>
+          </div>
+          <table class="custom-table">
+            <thead>
+              <tr>
+                <th>Timestamp</th>
+                <th>Student</th>
+                <th>Classroom</th>
+                <th>Violation Type</th>
+                <th>Evidence Frame</th>
+              </tr>
+            </thead>
+            <tbody id="mgrLogsTableBody"></tbody>
+          </table>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <div id="toastContainer" class="toast-container"></div>
+
+  <!-- Scripts -->
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/manager.js"></script>
+  <script src="/js/manager-portal.js"></script>
+</body>
+</html>

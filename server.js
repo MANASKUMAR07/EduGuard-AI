@@ -143,6 +143,12 @@ function isValidPassword(password) {
 // REST API ROUTES
 // ==========================================
 
+// Dedicated HTML Page Routes
+app.get('/login', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+app.get('/teacher', (req, res) => res.sendFile(path.join(__dirname, 'public', 'teacher.html')));
+app.get('/student', (req, res) => res.sendFile(path.join(__dirname, 'public', 'student.html')));
+app.get('/manager', (req, res) => res.sendFile(path.join(__dirname, 'public', 'manager.html')));
+
 // Health check endpoint for cloud deployments
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', uptime: process.uptime(), timestamp: new Date().toISOString() });
@@ -167,17 +173,20 @@ app.post('/api/auth/login', (req, res) => {
     return res.status(401).json({ success: false, message: 'Invalid email or password.' });
   }
 
+  const userResponse = {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    avatar: user.avatar,
+    institution: user.institution || 'Cambridge Academy of Sciences'
+  };
+
   res.json({
     success: true,
     message: 'Login successful',
-    data: {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      avatar: user.avatar,
-      institution: user.institution || 'Cambridge Academy of Sciences'
-    }
+    data: userResponse,
+    user: userResponse
   });
 });
 
@@ -212,6 +221,10 @@ app.get('/api/manager/overview', (req, res) => {
 
   res.json({
     success: true,
+    users: sanitizedUsers,
+    rooms: db.rooms,
+    assignments: db.assignments,
+    malpracticeIncidents: db.malpracticeIncidents,
     data: {
       stats: {
         totalUsers: db.users.length,
@@ -287,6 +300,27 @@ app.post('/api/manager/change-user-password', (req, res) => {
   res.json({
     success: true,
     message: `Password for "${user.name}" (${user.email}) updated successfully.`
+  });
+});
+
+app.post('/api/manager/override-password', (req, res) => {
+  const { userId, targetEmail, email, newPassword } = req.body;
+  const identifier = userId || targetEmail || email;
+  if (!identifier || !newPassword) {
+    return res.status(400).json({ success: false, message: 'Account email/identifier and new password are required.' });
+  }
+
+  const user = db.users.find(u => u.id === identifier || u.email.toLowerCase() === identifier.trim().toLowerCase());
+  if (!user) {
+    return res.status(404).json({ success: false, message: 'User account not found.' });
+  }
+
+  user.password = newPassword;
+  saveDatabase(db);
+
+  res.json({
+    success: true,
+    message: `Password for "${user.name}" (${user.email}) overridden successfully.`
   });
 });
 
@@ -378,13 +412,28 @@ app.post('/api/manager/broadcast-alert', (req, res) => {
 
 app.delete('/api/manager/users/:id', (req, res) => {
   const { id } = req.params;
-  const initialLen = db.users.length;
-  db.users = db.users.filter(u => u.id !== id && u.email !== id);
-  if (db.users.length < initialLen) {
-    saveDatabase(db);
-    return res.json({ success: true, message: `User removed from institutional database.` });
+  const target = db.users.find(u => u.id === id || u.email.toLowerCase() === id.toLowerCase());
+  if (!target) {
+    return res.status(404).json({ success: false, message: 'User account not located in database.' });
   }
-  res.status(404).json({ success: false, message: 'User not found.' });
+  if (target.role === 'manager') {
+    return res.status(403).json({ success: false, message: '🛡️ Super Administrator / Manager accounts cannot be deleted.' });
+  }
+  
+  db.users = db.users.filter(u => u.id !== target.id && u.email.toLowerCase() !== target.email.toLowerCase());
+  saveDatabase(db);
+  
+  return res.json({ 
+    success: true, 
+    message: `Account for ${target.name} (${target.email}) was permanently removed.`,
+    user: { id: target.id, name: target.name, email: target.email, role: target.role }
+  });
+});
+
+app.post('/api/manager/clear-audit-logs', (req, res) => {
+  db.malpracticeIncidents = [];
+  saveDatabase(db);
+  res.json({ success: true, message: 'All malpractice incident logs cleared.' });
 });
 
 app.post('/api/manager/rooms/terminate', (req, res) => {
@@ -571,17 +620,20 @@ app.post('/api/auth/verify-otp-register', (req, res) => {
   db.users.push(newUser);
   saveDatabase(db);
 
+  const registeredUserObj = {
+    id: newUser.id,
+    name: newUser.name,
+    email: newUser.email,
+    role: newUser.role,
+    avatar: newUser.avatar,
+    institution: newUser.institution
+  };
+
   res.status(201).json({
     success: true,
     message: 'Email verified and account registered successfully! You may now login.',
-    data: {
-      id: newUser.id,
-      name: newUser.name,
-      email: newUser.email,
-      role: newUser.role,
-      avatar: newUser.avatar,
-      institution: newUser.institution
-    }
+    data: registeredUserObj,
+    user: registeredUserObj
   });
 });
 
@@ -624,17 +676,20 @@ app.post('/api/auth/register', (req, res) => {
   db.users.push(newUser);
   saveDatabase(db);
 
+  const directUserObj = {
+    id: newUser.id,
+    name: newUser.name,
+    email: newUser.email,
+    role: newUser.role,
+    avatar: newUser.avatar,
+    institution: newUser.institution
+  };
+
   res.status(201).json({
     success: true,
     message: 'Account created successfully! You may now login.',
-    data: {
-      id: newUser.id,
-      name: newUser.name,
-      email: newUser.email,
-      role: newUser.role,
-      avatar: newUser.avatar,
-      institution: newUser.institution
-    }
+    data: directUserObj,
+    user: directUserObj
   });
 });
 
@@ -979,14 +1034,12 @@ app.get('/api/reports/students', (req, res) => {
   res.json({ success: true, activeStudents: roomStudents, registeredStudents: allStudents });
 });
 
-app.post('/api/reports/generate', (req, res) => {
-  const { roomId, studentName, durationMinutes } = req.body;
+function buildSessionReport(roomId, studentName, durationMinutes) {
   const targetRoom = (roomId || 'CLASS-101').toUpperCase();
   const isAll = !studentName || studentName === 'ALL' || studentName === 'Entire Classroom';
   const targetStudent = isAll ? `Classroom ${targetRoom} (All Students)` : studentName;
   const now = Date.now();
 
-  // Filter real incidents strictly matching target room and student
   const filteredIncidents = db.malpracticeIncidents.filter(inc => {
     const itemTime = new Date(inc.timestamp).getTime();
     if ((now - itemTime) > SEVEN_DAYS_MS) return false;
@@ -1013,9 +1066,13 @@ app.post('/api/reports/generate', (req, res) => {
   const report = {
     id: `rep-${Date.now()}`,
     roomId: targetRoom,
+    classroomId: targetRoom,
     studentName: targetStudent,
     generatedAt: new Date().toISOString(),
     sessionDuration: `${durationMinutes || 45} mins`,
+    duration: `${durationMinutes || 45} Mins`,
+    overallScore: calculatedFocus,
+    totalIncidents: totalViolations,
     retentionExpiresAt: new Date(now + SEVEN_DAYS_MS).toISOString(),
     retentionDaysRemaining: 7,
     metrics: {
@@ -1027,6 +1084,8 @@ app.post('/api/reports/generate', (req, res) => {
       totalIncidents: totalViolations
     },
     incidents: filteredIncidents.slice(0, 30),
+    assessment: `During the ${durationMinutes || 45}-minute live proctored session for ${targetStudent}, an attention & conduct index of ${calculatedFocus}% was recorded. ${totalViolations === 0 ? 'Zero malpractice infractions observed across the entire monitoring window.' : `A total of ${totalViolations} live infractions were captured (${tabSwitches} tab switches, ${faceDeviations} camera frame deviations).`}`,
+    attentionTimeline: [calculatedFocus, Math.min(100, calculatedFocus + 2), Math.max(40, calculatedFocus - 3), calculatedFocus, Math.min(100, calculatedFocus + 1)],
     aiAssessment: {
       summary: `During the ${durationMinutes || 45}-minute live proctored session for ${targetStudent}, an attention & conduct index of ${calculatedFocus}% was recorded. ${totalViolations === 0 ? 'Zero malpractice infractions observed across the entire monitoring window.' : `A total of ${totalViolations} live infractions were captured (${tabSwitches} tab switches, ${faceDeviations} camera frame deviations).`}`,
       teacherActionItems: [
@@ -1041,11 +1100,25 @@ app.post('/api/reports/generate', (req, res) => {
   db.reports.unshift(report);
   saveDatabase(db);
 
-  res.status(201).json({ success: true, data: report });
+  return report;
+}
+
+app.get('/api/reports/generate', (req, res) => {
+  const { roomId, studentName, studentId, durationMinutes } = req.query;
+  const target = studentName || studentId;
+  const report = buildSessionReport(roomId, target, durationMinutes);
+  res.json({ success: true, report, data: report });
+});
+
+app.post('/api/reports/generate', (req, res) => {
+  const { roomId, studentName, studentId, durationMinutes } = req.body;
+  const target = studentName || studentId;
+  const report = buildSessionReport(roomId, target, durationMinutes);
+  res.status(201).json({ success: true, report, data: report });
 });
 
 // GET 7-Day Session Reports for Teacher
-app.get('/api/reports', (req, res) => {
+const handleGet7DayReports = (req, res) => {
   const now = Date.now();
   if (!db.reports) db.reports = [];
 
@@ -1062,8 +1135,11 @@ app.get('/api/reports', (req, res) => {
     };
   });
 
-  res.json({ success: true, data: validReports });
-});
+  res.json({ success: true, reports: validReports, data: validReports });
+};
+
+app.get('/api/reports', handleGet7DayReports);
+app.get('/api/reports/7day-archive', handleGet7DayReports);
 
 // Fallback index route
 app.get('*', (req, res) => {
@@ -1330,6 +1406,17 @@ io.on('connection', (socket) => {
       });
     }
   });
+});
+
+// Express Error Handling Middleware (Catches malformed JSON syntax errors)
+app.use((err, req, res, next) => {
+  if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
+    return res.status(400).json({ success: false, message: 'Invalid JSON payload in request.' });
+  }
+  console.error('Unhandled server error:', err);
+  if (!res.headersSent) {
+    res.status(500).json({ success: false, message: 'Internal server error.' });
+  }
 });
 
 server.listen(PORT, () => {

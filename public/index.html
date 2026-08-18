@@ -3,1276 +3,146 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>EduGuard AI | Smart Virtual Classroom & Anti-Malpractice Proctoring Platform</title>
+  <title>EduGuard AI | Authentication & Security Gateway</title>
   <link rel="stylesheet" href="/css/style.css">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220%22%3E<text y=%2226%22 font-size=%2226%22>🎓</text></svg>">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
-<body>
+<body style="background-color: #060911; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 1.5rem;">
 
   <!-- =======================================================
-       AUTHENTICATION PORTAL (Production Login & Registration)
+       STANDALONE AUTHENTICATION PORTAL
        ======================================================= -->
-  <div id="authOverlayScreen" class="auth-overlay-screen">
-    <div class="auth-card-container">
-      
-      <div class="auth-header">
-        <div class="auth-brand-logo">🎓</div>
-        <h1 class="auth-title">EduGuard AI</h1>
-        <p class="auth-subtitle">AI-Proctored Virtual Classroom & Academic Management</p>
-        <div id="authCapacityBadge" style="background:rgba(99,102,241,0.12); border:1px solid rgba(99,102,241,0.3); border-radius:var(--radius-sm); padding:6px 10px; font-size:0.75rem; text-align:center; color:#a5b4fc; margin-top:8px;">
-          🏛️ <strong>Classroom Capacity:</strong> Max 40 Students & 2 Teachers per Session (Concurrent Classes Supported)
-        </div>
-      </div>
-
-      <!-- Institutional Role Selection -->
-      <div class="auth-role-tabs">
-        <button id="authRoleTabTeacher" class="auth-role-tab active" type="button" data-role="teacher">👩‍🏫 Teacher</button>
-        <button id="authRoleTabStudent" class="auth-role-tab" type="button" data-role="student">👨‍🎓 Student</button>
-        <button id="authRoleTabManager" class="auth-role-tab" type="button" data-role="manager">🛡️ Manager</button>
-      </div>
-
-      <!-- AI Proctoring Security Shield Notice -->
-      <div class="biometric-scanner-banner">
-        <div class="biometric-scanner-ring"></div>
-        <div>
-          <strong>AI Security & Behavioral Gate</strong><br>
-          <span style="font-size:0.72rem; color:#94a3b8;">Real-time tab monitoring and camera gaze detection will initiate upon class entry.</span>
-        </div>
-      </div>
-
-      <!-- Login / Register Form -->
-      <form id="authForm" style="display:flex; flex-direction:column; gap:12px;">
-        <input type="hidden" id="authRoleInput" name="role" value="teacher" />
-        
-        <div id="authNameField" class="form-group" style="display:none;">
-          <label class="form-label">Full Name</label>
-          <input type="text" id="authNameInput" class="form-input" placeholder="e.g. Dr. Evelyn Reed" />
-        </div>
-
-        <!-- Student Class Code Input Field -->
-        <div id="authClassCodeField" class="form-group" style="display:none;">
-          <div style="display:flex; justify-content:space-between; align-items:center;">
-            <label class="form-label">Classroom Code (Shared by Teacher)</label>
-            <span style="font-size:0.72rem; color:#818cf8;">e.g. CLASS-101</span>
-          </div>
-          <input type="text" id="authClassCodeInput" class="form-input" placeholder="e.g. CLASS-101" value="CLASS-101" style="font-family:monospace; font-weight:700; text-transform:uppercase; letter-spacing:1px; border-color:rgba(99,102,241,0.5);" />
-        </div>
-
-        <div class="form-group">
-          <div style="display:flex; justify-content:space-between; align-items:center;">
-            <label class="form-label">Institutional Email</label>
-            <span id="emailValidationStatus" style="font-size:0.72rem; color:#34d399; display:none;">✓ Valid Email</span>
-          </div>
-          <div style="display:flex; gap:6px;">
-            <input type="email" id="authEmailInput" class="form-input" placeholder="teacher@eduguard.edu" value="teacher@eduguard.edu" required autocomplete="email" />
-            <button type="button" id="authSendOtpBtn" class="btn-primary" style="display:none; padding:8px 12px; font-size:0.78rem; white-space:nowrap;">
-              📨 Send OTP
-            </button>
-          </div>
-          <div id="emailErrorMsg" class="field-error-msg">Please enter a valid email address format (e.g. user@domain.com)</div>
-        </div>
-
-        <!-- 6-Digit Email OTP Field (Registration Mode Only) -->
-        <div id="authOtpField" class="form-group" style="display:none; background:rgba(99,102,241,0.08); border:1px solid rgba(99,102,241,0.25); border-radius:var(--radius-sm); padding:10px;">
-          <div style="display:flex; justify-content:space-between; align-items:center;">
-            <label class="form-label" style="color:#a5b4fc; font-weight:700;">6-Digit Email Verification Code</label>
-            <span id="authOtpTimer" style="font-size:0.72rem; color:#94a3b8;">Expires in 10:00</span>
-          </div>
-          <input type="text" id="authOtpInput" class="form-input" placeholder="e.g. 849201" maxlength="6" style="font-family:monospace; font-size:1.15rem; font-weight:800; text-align:center; letter-spacing:4px; margin-top:4px;" />
-          <div id="authOtpDemoBanner" style="font-size:0.72rem; color:#22d3ee; margin-top:4px; text-align:center;"></div>
-        </div>
-
-        <div class="form-group">
-          <div style="display:flex; justify-content:space-between; align-items:center;">
-            <label class="form-label">Password</label>
-            <span id="pwdStrengthLabel" style="font-size:0.72rem; color:#94a3b8;">Policy: 8+ chars, A-Z, a-z, 0-9, symbol</span>
-          </div>
-          <div class="input-with-toggle">
-            <input type="password" id="authPasswordInput" class="form-input" placeholder="••••••••" value="EduGuard@2026" required autocomplete="current-password" />
-            <button type="button" id="togglePasswordVisibilityBtn" class="pwd-toggle-btn" title="Show/Hide Password">👁️</button>
-          </div>
-          
-          <div class="pwd-strength-container">
-            <div class="pwd-strength-bar">
-              <div id="pwdStrengthFill" class="pwd-strength-fill"></div>
-            </div>
-            <div class="pwd-checklist">
-              <div id="ruleLength" class="pwd-check-item"><span>●</span> Min 8 Characters</div>
-              <div id="ruleUpper" class="pwd-check-item"><span>●</span> Uppercase (A-Z)</div>
-              <div id="ruleLower" class="pwd-check-item"><span>●</span> Lowercase (a-z)</div>
-              <div id="ruleNumber" class="pwd-check-item"><span>●</span> Number (0-9)</div>
-              <div id="ruleSymbol" class="pwd-check-item" style="grid-column: 1 / -1;"><span>●</span> Special Symbol (!@#$%^&*...)</div>
-            </div>
-          </div>
-          <div id="passwordErrorMsg" class="field-error-msg">Password must meet all 5 security requirements.</div>
-        </div>
-
-        <button type="submit" id="authSubmitBtn" class="btn-primary" style="justify-content:center; padding:12px; font-size:0.95rem; margin-top:6px;">
-          🚀 Enter Proctored Classroom
-        </button>
-      </form>
-
-      <div id="authTogglePrompt" class="auth-toggle-prompt">
-        <span id="authToggleText">Don't have an institution account?</span>
-        <span id="authToggleLink" class="auth-toggle-link">Register Here</span>
-      </div>
-
-    </div>
-  </div>
-
-  <!-- =======================================================
-       GLOBAL MALPRACTICE ALERT TICKER (Real-Time Teacher HUD)
-       ======================================================= -->
-  <div id="globalAlertTicker" class="alert-ticker-container hidden">
-    <div id="globalAlertText">🚨 <strong>MALPRACTICE DETECTED:</strong> Student triggered an infraction.</div>
-    <button class="btn-secondary" style="padding:2px 10px; font-size:0.75rem; border-color:rgba(239,68,68,0.5); color:#fca5a5;" onclick="document.getElementById('globalAlertTicker').classList.add('hidden')">Dismiss</button>
-  </div>
-
-  <!-- =======================================================
-       TOP HEADER & NAVIGATION
-       ======================================================= -->
-  <header class="app-header">
-    <div class="brand-container">
-      <div class="brand-logo">🎓</div>
-      <div>
-        <div style="display:flex; align-items:center; gap:8px;">
-          <span class="brand-title">EduGuard AI</span>
-          <span class="brand-badge">ENTERPRISE</span>
-        </div>
-      </div>
-      <!-- Creator Badge -->
-      <div class="creator-badge" style="display:inline-flex; align-items:center; gap:6px; background:linear-gradient(135deg, rgba(99,102,241,0.2), rgba(168,85,247,0.25)); border:1px solid rgba(168,85,247,0.45); border-radius:20px; padding:3px 12px; margin-left:8px;">
-        <span style="font-size:0.75rem;">✨</span>
-        <span style="font-size:0.75rem; font-weight:700; color:#e0e7ff; letter-spacing:0.3px;">Creator: <strong style="color:#38bdf8; text-shadow:0 0 10px rgba(56,189,248,0.5);">Manas Kumar</strong></span>
+  <div class="auth-card-container" style="max-width: 480px; width: 100%; box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.95), 0 0 35px rgba(99, 102, 241, 0.25);">
+    
+    <div class="auth-header">
+      <div class="auth-brand-logo">🎓</div>
+      <h1 class="auth-title">EduGuard AI</h1>
+      <p class="auth-subtitle">AI-Proctored Virtual Classroom & Academic Integrity Platform</p>
+      <div id="authCapacityBadge" class="auth-capacity-badge">
+        🏛️ <strong>Classroom Capacity:</strong> Max 40 Students & 2 Teachers per Session
+        <br />
+        <strong>Website is designed by Manas kumar.</strong>
+        <br />
+        <strong>For Help contact: +91 8931030960.</strong>
       </div>
     </div>
 
-    <!-- Main Navigation Tabs (Dynamically filtered by Role) -->
-    <nav class="nav-tabs">
-      <button class="nav-tab-btn active" data-view="classroom">
-        <span>📹</span> Live Classroom
+    <!-- Institutional Role Selection Tabs -->
+    <div class="auth-role-tabs">
+      <button id="authRoleTabTeacher" class="auth-role-tab active" type="button" data-role="teacher">
+        👩‍🏫 Teacher / Host
       </button>
-      <button class="nav-tab-btn teacher-only-nav" data-view="proctoring">
-        <span>👁️</span> AI Proctoring Center
+      <button id="authRoleTabStudent" class="auth-role-tab" type="button" data-role="student">
+        👨‍🎓 Student / Candidate
       </button>
-      <button class="nav-tab-btn" data-view="assignments" id="navAssignmentsBtn">
-        <span>📚</span> Homework & Assignments
+      <button id="authRoleTabManager" class="auth-role-tab" type="button" data-role="manager">
+        🛡️ Manager
       </button>
-      <button class="nav-tab-btn" data-view="tasks" id="navTasksBtn">
-        <span>📋</span> Task Planner
-      </button>
-      <button class="nav-tab-btn teacher-only-nav" data-view="reports">
-        <span>📊</span> AI Analytics & Reports
-      </button>
-      <button class="nav-tab-btn manager-only-nav" data-view="manager" id="navManagerBtn" style="display:none;">
-        <span>🛡️</span> Manager Portal
-      </button>
-    </nav>
+    </div>
 
-    <!-- Header Right: Class Code, User Profile & Exit -->
-    <div class="header-right">
-      <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
-        <button id="openRoomManagerBtn" class="btn-secondary" style="padding:6px 12px; font-size:0.8rem; display:flex; align-items:center; gap:6px;">
-          <span>🚪</span> Room: <strong id="currentRoomCodeLabel">CLASS-101</strong>
-        </button>
-        <button id="quickCopyRoomCodeBtn" class="btn-secondary" title="Copy Class Code to Clipboard" style="padding:6px 12px; font-size:0.8rem; font-weight:700; display:flex; align-items:center; gap:5px; background:rgba(99,102,241,0.18); border-color:#6366f1; color:#c7d2fe;">
-          <span>📋</span> Copy Code
-        </button>
-        <button id="quickGenRoomCodeBtn" class="btn-primary teacher-only" title="Generate Random Class Code" style="padding:6px 12px; font-size:0.8rem; display:flex; align-items:center; gap:5px;">
-          <span>🎲</span> New Code
-        </button>
-      </div>
-
-      <!-- 1-Click Role Switcher Pill -->
-      <div class="role-switch-pills" id="headerRoleSwitcher" style="display:flex; background:rgba(15,23,42,0.8); border:1px solid rgba(255,255,255,0.1); border-radius:30px; padding:3px; gap:2px;">
-        <button id="switchTeacherBtn" type="button" class="role-pill-btn active" style="padding:4px 10px; font-size:0.75rem; border-radius:20px; border:none; background:var(--accent-primary); color:#fff; font-weight:700; cursor:pointer;">
+    <!-- 1-Click Instant Demo Access Bar -->
+    <div class="auth-demo-bar">
+      <span class="auth-demo-label">⚡ 1-Click Instant Access:</span>
+      <div class="auth-demo-buttons">
+        <button type="button" id="quickDemoTeacherBtn" class="btn-demo-quick" title="1-Click Login as Dr. Evelyn Reed">
           👩‍🏫 Teacher
         </button>
-        <button id="switchStudentBtn" type="button" class="role-pill-btn" style="padding:4px 10px; font-size:0.75rem; border-radius:20px; border:none; background:transparent; color:var(--text-secondary); font-weight:700; cursor:pointer;">
+        <button type="button" id="quickDemoStudentBtn" class="btn-demo-quick" title="1-Click Login as Alex Johnson">
           👨‍🎓 Student
         </button>
-        <button id="switchManagerBtn" type="button" class="role-pill-btn" style="padding:4px 10px; font-size:0.75rem; border-radius:20px; border:none; background:transparent; color:var(--text-secondary); font-weight:700; cursor:pointer;">
-          🛡️ Manager
-        </button>
       </div>
-
-      <div class="user-profile-badge">
-        <div class="user-avatar" id="headerAvatarInitial">E</div>
-        <div class="user-info-text">
-          <span class="user-name" id="headerUserName">Dr. Evelyn Reed</span>
-          <span class="user-role-label" id="headerUserRole">Teacher (Host & Proctor)</span>
-        </div>
-      </div>
-
-      <button id="headerLogoutBtn" class="logout-btn" title="Sign Out">
-        🚪 Exit
-      </button>
     </div>
-  </header>
 
-  <!-- =======================================================
-       MAIN CONTAINER & VIEWS
-       ======================================================= -->
-  <main class="app-container">
-
-    <!-- =====================================================
-         VIEW 1: LIVE CLASSROOM & WEBRTC STAGE
-         ===================================================== -->
-    <section id="view-classroom" class="view-section active">
-      <div class="classroom-layout">
-        
-        <div class="classroom-main-stage">
-          
-          <div class="classroom-top-bar">
-            <div class="class-info-title" style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-              <span class="live-pulse-dot"></span>
-              <span id="classRoomTitleHeader">Live Virtual Classroom (Room: CLASS-101)</span>
-              <button id="stageCopyCodeBtn" class="btn-secondary" style="padding:4px 10px; font-size:0.75rem; font-weight:700; border-radius:6px; display:inline-flex; align-items:center; gap:4px; border-color:#6366f1; color:#a5b4fc;" title="Copy this class code">
-                📋 Copy Code
-              </button>
-            </div>
-
-            <div class="classroom-mode-tabs">
-              <button class="mode-tab-btn active" data-mode="video">🎥 Multi-Video Grid</button>
-              <button class="mode-tab-btn" data-mode="whiteboard">✏️ Collaborative Whiteboard</button>
-            </div>
-          </div>
-
-          <div class="stage-content-container">
-            
-            <div id="classroomVideoGrid" class="video-grid-view">
-              
-              <!-- Local User Video Tile (Webcam + AI HUD Overlay) -->
-              <div class="video-tile" id="localVideoTile">
-                <video id="localVideoFeed" autoplay playsinline muted></video>
-                <canvas id="aiOverlayCanvas" class="ai-overlay-canvas"></canvas>
-
-                <div class="video-overlay-top">
-                  <div class="participant-tag">
-                    <span id="localParticipantLabel">You (Live Camera)</span>
-                    <span style="font-size:0.68rem; color:#818cf8;">(Active)</span>
-                  </div>
-                  <div class="status-pill status-focused" id="myFocusStatusPill">
-                    ● Monitored
-                  </div>
-                </div>
-
-                <div class="video-overlay-bottom">
-                  <div class="focus-meter-mini">
-                    <span>Live Focus:</span>
-                    <div class="meter-bar">
-                      <div class="meter-fill" id="myFocusFill" style="width: 98%;"></div>
-                    </div>
-                    <span id="myFocusText">98%</span>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Remote peer student / teacher video tiles dynamically injected by WebRTC -->
-            </div>
-
-            <!-- Whiteboard Stage -->
-            <div id="classroomWhiteboardStage" class="whiteboard-view">
-              <div class="whiteboard-toolbar">
-                <span style="font-size:0.8rem; font-weight:700; color:#fff;">Whiteboard:</span>
-                <input type="color" id="wbColorPicker" class="wb-color-picker" value="#6366f1" title="Pen Color" />
-                <button class="wb-tool-btn active" title="Pen Tool">✏️ Pen</button>
-                <button id="wbClearBtn" class="ctrl-btn btn-danger" style="padding:4px 10px; font-size:0.75rem;">🗑️ Clear Canvas</button>
-              </div>
-              <canvas id="whiteboardCanvas"></canvas>
-            </div>
-
-          </div>
-
-          <!-- Bottom Control Bar -->
-          <div class="classroom-controls-bar">
-            <!-- User Media Controls (Both Teacher & Student) -->
-            <div class="controls-group">
-              <button id="micToggleBtn" class="ctrl-btn btn-active" title="Turn Mic On/Off">🎙️ Mic Active</button>
-              <button id="camToggleBtn" class="ctrl-btn btn-active" title="Turn Camera On/Off">📹 Cam On</button>
-              <button id="screenShareBtn" class="ctrl-btn" title="Share Screen">🖥️ Share Screen</button>
-              <button id="handRaiseBtn" class="ctrl-btn student-only" style="display:none;" title="Raise Hand in Class">✋ Raise Hand</button>
-            </div>
-
-            <!-- Teacher Classroom Wide Actions -->
-            <div class="controls-group teacher-only">
-              <button class="ctrl-btn" onclick="classroom.muteAllStudents()" title="Mute all students in session">🔇 Mute All</button>
-              <button class="ctrl-btn" onclick="classroom.forceAllStudentCamsOn()" title="Turn on all student webcams">📹 Request All Cams</button>
-              <button class="ctrl-btn btn-danger" onclick="classroom.leaveMeetingAndExportPdf()" title="Leave classroom session and generate official 7-Day PDF Report">
-                🔴 Leave Meeting & Export PDF
-              </button>
-            </div>
-          </div>
-
-        </div>
-
-        <!-- Sidebar: Chat, Students Media Manager & Malpractice Stream -->
-        <aside class="classroom-sidebar">
-          <div class="sidebar-tabs">
-            <button class="sidebar-tab-btn active" id="sidebarChatTabBtn" onclick="classroom.switchSidebarTab('chat')">
-              💬 Chat
-            </button>
-            <button class="sidebar-tab-btn teacher-only" id="sidebarStudentsTabBtn" onclick="classroom.switchSidebarTab('students')">
-              👥 Students (<span id="studentsRosterCount">0</span>)
-            </button>
-            <button class="sidebar-tab-btn teacher-only" id="sidebarMalpracticeTabBtn" onclick="classroom.switchSidebarTab('malpractice')">
-              🚨 Alerts (<span id="incidentsCountBadge">0</span>)
-            </button>
-          </div>
-
-          <!-- Chat Tab -->
-          <div id="chatTabContent" class="sidebar-content-area" style="display:flex;">
-            <div id="chatMessagesBox" class="chat-messages-box">
-              <div class="chat-bubble teacher">
-                <div class="chat-sender">System • Welcome</div>
-                <div class="chat-text">Welcome to the live proctored classroom! All joined participant streams and AI telemetry are active.</div>
-              </div>
-            </div>
-            <form id="chatForm" class="chat-input-bar">
-              <input type="text" id="chatInput" placeholder="Type message..." autocomplete="off" />
-              <button type="submit" class="btn-primary" style="padding:8px 14px;">Send</button>
-            </form>
-          </div>
-
-          <!-- Students Live Media Manager Tab (Teacher Only) -->
-          <div id="studentsTabContent" class="sidebar-content-area" style="display:none; padding:10px; flex-direction:column; gap:10px; overflow-y:auto;">
-            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border-subtle); padding-bottom:8px;">
-              <strong style="font-size:0.85rem; color:#fff;">Student Media Controls</strong>
-              <div style="display:flex; gap:4px;">
-                <button class="ctrl-btn" style="padding:3px 8px; font-size:0.7rem;" onclick="classroom.muteAllStudents()">🔇 Mute All</button>
-                <button class="ctrl-btn" style="padding:3px 8px; font-size:0.7rem;" onclick="classroom.forceAllStudentCamsOn()">📹 Cam All</button>
-              </div>
-            </div>
-            <div id="studentsRosterList" style="display:flex; flex-direction:column; gap:8px;">
-              <div style="text-align:center; color:#64748b; padding:1.5rem; font-size:0.8rem;">
-                No students connected yet. Share the Class Code to let students join.
-              </div>
-            </div>
-          </div>
-
-          <!-- Malpractice Live Stream (Teacher Only) -->
-          <div id="malpracticeTabContent" class="sidebar-content-area" style="display:none;">
-            <div id="malpracticeStreamContainer" style="display:flex; flex-direction:column; gap:10px;">
-              <div style="text-align:center; color:#64748b; padding:2rem; font-size:0.85rem;">
-                Zero malpractice infractions recorded. AI monitoring is active.
-              </div>
-            </div>
-          </div>
-        </aside>
-
+    <!-- AI Proctoring Security Shield Notice -->
+    <div class="biometric-scanner-banner">
+      <div class="biometric-scanner-ring"></div>
+      <div>
+        <strong>AI Proctoring & Behavioral Gate</strong><br>
+        <span style="font-size:0.72rem; color:var(--text-muted);">Real-time camera gaze tracking & tab switch monitoring will activate on session start.</span>
       </div>
-    </section>
+    </div>
 
-    <!-- =====================================================
-         VIEW 2: AI PROCTORING & MONITORING CENTER (Teacher Only)
-         ===================================================== -->
-    <section id="view-proctoring" class="view-section">
-      <div class="proctoring-dashboard">
-        
-        <div class="stats-grid">
-          <div class="stat-card">
-            <div class="stat-icon-wrapper">👥</div>
-            <div class="stat-info">
-              <span class="stat-value" id="liveStudentsCountBadge">1</span>
-              <span class="stat-label">Connected Participants</span>
-            </div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-icon-wrapper" style="color:#ef4444;">🚨</div>
-            <div class="stat-info">
-              <span class="stat-value" id="statsTabSwitchesCount">0</span>
-              <span class="stat-label">Tab Switches Intercepted</span>
-            </div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-icon-wrapper" style="color:#f59e0b;">👁️</div>
-            <div class="stat-info">
-              <span class="stat-value" id="statsGazeDeviationsCount">0</span>
-              <span class="stat-label">Gaze / Phone Warnings</span>
-            </div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-icon-wrapper" style="color:#10b981;">🛡️</div>
-            <div class="stat-info">
-              <span class="stat-value">99.2%</span>
-              <span class="stat-label">Integrity Index</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="proctor-main-grid">
-          <div class="live-ai-inspect-card">
-            <div class="inspect-header">
-              <div>
-                <h3 style="font-size:1.2rem; font-weight:700;">Live Computer Vision & Telemetry Feed</h3>
-                <p style="font-size:0.8rem; color:var(--text-secondary);">Real-time skin tone centroid, head pose angle, and tab focus tracking</p>
-              </div>
-              <span class="status-pill status-focused">AI Tracker Active</span>
-            </div>
-
-            <div class="inspect-video-container">
-              <video id="inspectVideoFeed" autoplay playsinline muted style="width:100%; height:100%; object-fit:cover;"></video>
-              <div class="ai-hud-layer">
-                <div id="inspectTelemetryBox" class="hud-telemetry-box">
-                  <div><strong>AI State:</strong> <span style="color:#10b981;">Center (Focused)</span></div>
-                  <div><strong>Focus Metric:</strong> 98%</div>
-                  <div><strong>Tab Switched:</strong> 0 times</div>
-                  <div><strong>Posture Centroid:</strong> (0.00, 0.00)</div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="incident-gallery-card">
-            <div class="inspect-header">
-              <h3 style="font-size:1.1rem; font-weight:700;">Automatic Malpractice Evidence Snapshots</h3>
-            </div>
-            <div id="evidenceListContainer" class="evidence-list">
-              <div style="text-align:center; padding:2rem; color:#64748b; font-size:0.85rem;">
-                When an infraction occurs (Tab switch, absence, multiple people, looking at phone), high-resolution video frames are automatically captured and recorded here.
-              </div>
-            </div>
-          </div>
-        </div>
-
+    <!-- Login / Register Form -->
+    <form id="authForm" class="auth-form">
+      <input type="hidden" id="authRoleInput" name="role" value="teacher" />
+      
+      <div id="authNameField" class="form-group" style="display:none;">
+        <label class="form-label">Full Name</label>
+        <input type="text" id="authNameInput" class="form-input" placeholder="e.g. Dr. Evelyn Reed" />
       </div>
-    </section>
 
-    <!-- =====================================================
-         VIEW 3: HOMEWORK & ASSIGNMENT HUB
-         ===================================================== -->
-    <section id="view-assignments" class="view-section">
-      <div class="assignment-hub-container">
-        
-        <div class="hub-header-actions">
-          <div>
-            <h2 style="font-size:1.6rem; font-weight:800;">Academic Homework & Assignments</h2>
-            <p style="font-size:0.85rem; color:var(--text-secondary);">Manage, submit, grade, and review student coursework with AI anti-plagiarism assistance</p>
-          </div>
-
-          <div class="teacher-only">
-            <button id="openCreateAssignmentBtn" class="btn-primary">
-              ➕ Create New Assignment
-            </button>
-          </div>
+      <!-- Student Class Code Input Field -->
+      <div id="authClassCodeField" class="form-group" style="display:none;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <label class="form-label">Classroom Code (Shared by Teacher)</label>
+          <span style="font-size:0.72rem; color:#818cf8; font-weight:600;">e.g. CLASS-101</span>
         </div>
-
-        <div id="assignmentCardsGrid" class="assignment-cards-grid"></div>
-
+        <input type="text" id="authClassCodeInput" class="form-input class-code-input" placeholder="e.g. CLASS-101" value="CLASS-101" />
       </div>
-    </section>
 
-    <!-- =====================================================
-         VIEW 4: TASK PLANNER
-         ===================================================== -->
-    <section id="view-tasks" class="view-section">
-      <div class="assignment-hub-container">
-        <div class="hub-header-actions">
-          <div>
-            <h2 style="font-size:1.6rem; font-weight:800;" id="taskPlannerTitle">Task Assignment & Study Planner</h2>
-            <p style="font-size:0.85rem; color:var(--text-secondary);" id="taskPlannerSubtitle">Track daily objectives, teacher-assigned review goals, and study deadlines</p>
-          </div>
-          <button id="openCreateTaskBtn" class="btn-primary">
-            ➕ Add Personal Task
+      <div class="form-group">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <label class="form-label">Institutional Email</label>
+          <span id="emailValidationStatus" class="validation-status-badge">✓ Valid Email</span>
+        </div>
+        <div style="display:flex; gap:6px;">
+          <input type="email" id="authEmailInput" class="form-input" placeholder="teacher@eduguard.edu" value="teacher@eduguard.edu" required autocomplete="email" />
+          <button type="button" id="authSendOtpBtn" class="btn-primary" style="display:none; padding:8px 12px; font-size:0.78rem; white-space:nowrap;">
+            📨 Send OTP
           </button>
         </div>
-
-        <div class="tasks-board-grid">
-          <div class="kanban-column">
-            <div class="column-header">
-              <span>📌 To Do</span>
-              <span style="color:var(--text-muted); font-size:0.8rem;">Pending</span>
-            </div>
-            <div id="kanbanTodoCol" style="display:flex; flex-direction:column; gap:10px;"></div>
-          </div>
-
-          <div class="kanban-column">
-            <div class="column-header">
-              <span>⚡ In Progress</span>
-              <span style="color:#fbbf24; font-size:0.8rem;">Active</span>
-            </div>
-            <div id="kanbanInProgCol" style="display:flex; flex-direction:column; gap:10px;"></div>
-          </div>
-
-          <div class="kanban-column">
-            <div class="column-header">
-              <span>✅ Completed</span>
-              <span style="color:#34d399; font-size:0.8rem;">Done</span>
-            </div>
-            <div id="kanbanDoneCol" style="display:flex; flex-direction:column; gap:10px;"></div>
-          </div>
-        </div>
-
+        <div id="emailErrorMsg" class="field-error-msg">Please enter a valid institutional email address (e.g. user@eduguard.edu)</div>
       </div>
-    </section>
 
-    <!-- =====================================================
-         VIEW 5: AI REPORT CARD & COMPREHENSIVE ANALYTICS (Teacher Only)
-         ===================================================== -->
-    <section id="view-reports" class="view-section">
-      <div class="report-view-container">
+      <!-- 6-Digit Email OTP Field (Registration Mode Only) -->
+      <div id="authOtpField" class="form-group otp-card-container" style="display:none;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <label class="form-label" style="color:#a5b4fc; font-weight:700;">6-Digit Email Verification Code</label>
+          <span id="authOtpTimer" style="font-size:0.72rem; color:#94a3b8;">Expires in 10:00</span>
+        </div>
+        <input type="text" id="authOtpInput" class="form-input otp-digit-input" placeholder="849201" maxlength="6" />
+        <div id="authOtpDemoBanner" style="font-size:0.72rem; color:#22d3ee; margin-top:4px; text-align:center;"></div>
+      </div>
+
+      <div class="form-group">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <label class="form-label">Password</label>
+          <span id="pwdStrengthLabel" style="font-size:0.72rem; color:#94a3b8;">Policy: 8+ chars, A-Z, a-z, 0-9, symbol</span>
+        </div>
+        <div class="input-with-toggle">
+          <input type="password" id="authPasswordInput" class="form-input" placeholder="••••••••" value="EduGuard@2026" required autocomplete="current-password" />
+          <button type="button" id="togglePasswordVisibilityBtn" class="pwd-toggle-btn" title="Show/Hide Password">👁️</button>
+        </div>
         
-        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
-          <div>
-            <h2 style="font-size:1.8rem; font-weight:800;">AI Comprehensive Classroom & Proctoring Report</h2>
-            <p style="font-size:0.85rem; color:var(--text-secondary);">Automated student behavioral breakdown, live attention timeline, and anti-cheating audit trail</p>
+        <div class="pwd-strength-container">
+          <div class="pwd-strength-bar">
+            <div id="pwdStrengthFill" class="pwd-strength-fill"></div>
           </div>
-          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-            <select id="reportTargetStudentSelect" class="form-select" style="padding:7px 12px; font-size:0.82rem; min-width:220px; background:rgba(15,23,42,0.9); border-color:#6366f1; color:#fff;">
-              <option value="ALL">🏫 Entire Classroom (Aggregated)</option>
-            </select>
-            <button id="generateReportBtn" class="btn-primary" style="padding:7px 14px; font-size:0.82rem;">
-              🔄 Generate Live Report
-            </button>
-            <button id="downloadPdfReportBtn" class="btn-secondary" style="padding:7px 14px; font-size:0.82rem;">
-              📥 Print / Download PDF
-            </button>
-          </div>
-        </div>
-
-        <div class="report-hero-card">
-          <div class="report-hero-left">
-            <div class="report-title-badge">
-              <span class="subject-badge">SESSION AUDIT</span>
-              <span id="reportIntegrityStatus" class="status-pill status-focused">Exceptional Integrity</span>
-            </div>
-
-            <h1 class="report-main-title" id="reportStudentName">Alex Johnson</h1>
-
-            <div class="report-meta-grid">
-              <div class="report-meta-box">
-                <div class="report-meta-label">Generated At</div>
-                <div class="report-meta-val" id="reportGeneratedAt">--</div>
-              </div>
-              <div class="report-meta-box">
-                <div class="report-meta-label">Session Duration</div>
-                <div class="report-meta-val" id="reportDuration">45 mins</div>
-              </div>
-              <div class="report-meta-box">
-                <div class="report-meta-label">Total Infractions</div>
-                <div class="report-meta-val" id="repTotalIncidentsVal">0</div>
-              </div>
-            </div>
-
-            <div style="margin-top:10px; background:rgba(0,0,0,0.3); padding:1rem; border-radius:var(--radius-md); border:1px solid var(--border-subtle);">
-              <h4 style="font-size:0.9rem; font-weight:700; color:#818cf8; margin-bottom:6px;">🤖 AI Executive Assessment:</h4>
-              <p id="reportAISummaryText" style="font-size:0.85rem; color:#cbd5e1; line-height:1.6;">
-                Analyzing session telemetry...
-              </p>
-            </div>
-          </div>
-
-          <div class="report-score-donut">
-            <div class="report-meta-label" style="text-transform:uppercase; letter-spacing:1px;">Class Attention Score</div>
-            <div class="donut-value" id="reportScoreDonutVal">98%</div>
-            <div style="font-size:0.8rem; color:#34d399; font-weight:700;">High Academic Engagement</div>
-            <div style="display:flex; justify-content:space-around; width:100%; margin-top:10px; font-size:0.75rem; border-top:1px solid var(--border-subtle); padding-top:8px;">
-              <div>Tab Switches: <strong id="repTabSwitchesVal" style="color:#ef4444;">0</strong></div>
-              <div>Gaze Drift: <strong id="repFaceDriftVal" style="color:#f59e0b;">0</strong></div>
-            </div>
-          </div>
-        </div>
-
-        <div class="charts-row">
-          <div class="chart-card">
-            <h3 style="font-size:1.1rem; font-weight:700;">📈 Student Attention & Focus Index Timeline</h3>
-            <div class="chart-canvas-wrapper">
-              <canvas id="attentionTimelineChart"></canvas>
-            </div>
-          </div>
-
-          <div class="chart-card">
-            <h3 style="font-size:1.1rem; font-weight:700;">🎯 Malpractice Categorization</h3>
-            <div class="chart-canvas-wrapper">
-              <canvas id="violationsBreakdownChart"></canvas>
-            </div>
-          </div>
-        </div>
-
-        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1.5rem;">
-          <div class="chart-card">
-            <h3 style="font-size:1.1rem; font-weight:700; color:#818cf8;">📌 Teacher Action Plan & Counseling</h3>
-            <ul id="reportActionItemsList" style="padding-left:1.2rem; font-size:0.85rem; line-height:1.7;">
-              <li>Review student coursework for conceptual understanding.</li>
-            </ul>
-          </div>
-
-          <div class="chart-card">
-            <h3 style="font-size:1.1rem; font-weight:700; color:#22d3ee;">🏡 Parent Behavioral Insights</h3>
-            <p id="reportParentInsights" style="font-size:0.85rem; color:#cbd5e1; line-height:1.6;">
-              Student showed good commitment during the online session with zero distractions.
-            </p>
-          </div>
-        </div>
-
-        <!-- 7-Day Rolling Data Retention Notice Banner -->
-        <div style="background:rgba(99,102,241,0.12); border:1px solid rgba(99,102,241,0.35); border-radius:var(--radius-md); padding:1rem 1.2rem; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
-          <div style="display:flex; align-items:center; gap:10px;">
-            <span style="font-size:1.5rem;">📅</span>
-            <div>
-              <strong style="color:#c7d2fe; font-size:0.92rem;">7-Day Teacher Data Retention Policy Active</strong>
-              <p style="font-size:0.8rem; color:#94a3b8; margin:0;">
-                In compliance with academic privacy guidelines, all completed classroom telemetry, proctoring metrics, and incident records are accessible <strong>only in PDF form</strong> and retained for <strong>strictly 7 days</strong>. After 7 days, session data is automatically purged.
-              </p>
-            </div>
-          </div>
-          <span class="status-pill status-warning" style="font-size:0.75rem;">⏳ 7-Day Rolling Window</span>
-        </div>
-
-        <!-- 7-Day Past Session PDF Archive Table -->
-        <div class="audit-table-card">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
-            <div>
-              <h3 style="font-size:1.15rem; font-weight:700; color:#fff;">📑 Past 7-Day Classroom PDF Archive</h3>
-              <p style="font-size:0.8rem; color:var(--text-muted);">Download official PDF forms of your concluded classroom sessions (Records older than 7 days are automatically expired).</p>
-            </div>
-            <button id="refreshPdfArchiveBtn" class="btn-secondary" style="padding:6px 12px; font-size:0.8rem;">
-              🔄 Refresh Archive
-            </button>
-          </div>
-
-          <table class="custom-table">
-            <thead>
-              <tr>
-                <th>Class Code</th>
-                <th>Concluded Date & Time</th>
-                <th>Duration</th>
-                <th>Attention Score</th>
-                <th>Infractions</th>
-                <th>Retention Status</th>
-                <th style="text-align:right;">Official PDF Form</th>
-              </tr>
-            </thead>
-            <tbody id="sessionPdfArchiveTableBody">
-              <tr>
-                <td colspan="7" style="text-align:center; color:#64748b; padding:2rem;">Loading 7-day session archives...</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <div class="audit-table-card">
-          <h3 style="font-size:1.15rem; font-weight:700; margin-bottom:1rem;">🔍 Complete Incident Audit Trail (Evidence Log)</h3>
-          <table class="custom-table">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Timestamp</th>
-                <th>Violation Type</th>
-                <th>Incident Details</th>
-                <th>Evidence Snapshot</th>
-              </tr>
-            </thead>
-            <tbody id="reportAuditTableBody"></tbody>
-          </table>
-        </div>
-
-      </div>
-    </section>
-
-    <!-- =======================================================
-         VIEW 6: EXECUTIVE MANAGER / SUPER ADMIN MASTER SUITE
-         ======================================================= -->
-    <section id="managerView" class="view-section">
-      <div class="assignment-hub-container">
-        
-        <!-- Manager Executive Banner -->
-        <div class="hub-header-actions" style="border-left: 4px solid #8b5cf6; background: linear-gradient(135deg, rgba(139,92,246,0.12), rgba(15,23,42,0.9));">
-          <div>
-            <div style="display:flex; align-items:center; gap:8px;">
-              <h2 style="font-family:var(--font-heading); font-size:1.4rem; font-weight:800; color:#fff;">🛡️ Executive Manager Master Control Suite</h2>
-              <span class="status-pill" style="background:#8b5cf633; border:1px solid #8b5cf6; color:#c4b5fd; font-size:0.75rem;">Full Super Admin Access</span>
-            </div>
-            <p style="color:var(--text-muted); font-size:0.85rem; margin-top:4px;">
-              Global oversight: instant bypass registration, account credentials manager, system policy overrides, live classroom control, and audit logs.
-            </p>
-          </div>
-          <div style="display:flex; gap:8px; flex-wrap:wrap;">
-            <button id="managerExportDbBtn" class="btn-secondary" style="font-size:0.8rem; padding:6px 12px; color:#38bdf8; border-color:rgba(56,189,248,0.3);">
-              💾 Export DB JSON
-            </button>
-            <button id="managerResetAllUsersBtn" class="btn-secondary" style="font-size:0.8rem; padding:6px 12px; color:#fb7185; border-color:rgba(244,63,94,0.3);">
-              🔄 Reset to Defaults
-            </button>
-          </div>
-        </div>
-
-        <!-- Manager Quick Metrics -->
-        <div class="stats-grid">
-          <div class="stat-card">
-            <div class="stat-icon-wrapper" style="color:#8b5cf6;">👥</div>
-            <div>
-              <span class="stat-value" id="mgrTotalUsersVal">0</span>
-              <span class="stat-label">Total Registered Users</span>
-            </div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-icon-wrapper" style="color:#38bdf8;">👨‍🎓</div>
-            <div>
-              <span class="stat-value" id="mgrTotalStudentsVal">0</span>
-              <span class="stat-label">Registered Students</span>
-            </div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-icon-wrapper" style="color:#6366f1;">👩‍🏫</div>
-            <div>
-              <span class="stat-value" id="mgrTotalTeachersVal">0</span>
-              <span class="stat-label">Registered Teachers</span>
-            </div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-icon-wrapper" style="color:#10b981;">🏫</div>
-            <div>
-              <span class="stat-value" id="mgrActiveRoomsVal">0</span>
-              <span class="stat-label">Live Active Classrooms</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- Super Admin Twin Management Cards -->
-        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap:1.25rem; margin-bottom:1.5rem;">
-          
-          <!-- 1. INSTANT BYPASS USER REGISTRATION -->
-          <div class="audit-table-card" style="border:1px solid rgba(139,92,246,0.3);">
-            <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
-              <span style="font-size:1.2rem;">⚡</span>
-              <h3 style="font-size:1.1rem; font-weight:700; color:#c4b5fd;">Bypass Registration System (Zero OTP)</h3>
-            </div>
-            <p style="font-size:0.78rem; color:var(--text-muted); margin-bottom:12px;">
-              Instantly provision active Teacher, Student, or Manager accounts directly without email OTP verification.
-            </p>
-            <form id="mgrBypassRegForm" style="display:flex; flex-direction:column; gap:10px;">
-              <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
-                <input type="text" id="bypassRegName" class="form-input" placeholder="Full Name" required />
-                <input type="email" id="bypassRegEmail" class="form-input" placeholder="Email Address" required />
-              </div>
-              <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
-                <select id="bypassRegRole" class="form-select">
-                  <option value="student">👨‍🎓 Student</option>
-                  <option value="teacher">👩‍🏫 Teacher</option>
-                  <option value="manager">🛡️ Manager</option>
-                </select>
-                <input type="text" id="bypassRegPassword" class="form-input" placeholder="Initial Password" value="EduGuard@2026" required />
-              </div>
-              <button type="submit" class="btn-primary" style="justify-content:center; padding:9px; font-size:0.85rem;">
-                ⚡ Create Account Instantly
-              </button>
-            </form>
-          </div>
-
-          <!-- 2. CHANGE MANAGER CREDENTIALS & SECURITY -->
-          <div class="audit-table-card" style="border:1px solid rgba(99,102,241,0.3);">
-            <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
-              <span style="font-size:1.2rem;">🛡️</span>
-              <h3 style="font-size:1.1rem; font-weight:700; color:#a5b4fc;">Manage Manager Panel Password & Account</h3>
-            </div>
-            <p style="font-size:0.78rem; color:var(--text-muted); margin-bottom:12px;">
-              Change your Manager Panel login password and administrative email address.
-            </p>
-            <form id="mgrUpdateCredentialsForm" style="display:flex; flex-direction:column; gap:10px;">
-              <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
-                <input type="text" id="mgrNewName" class="form-input" placeholder="Display Name" value="Executive Manager" required />
-                <input type="email" id="mgrNewEmail" class="form-input" placeholder="Manager Email" value="manager@eduguard.edu" required />
-              </div>
-              <div class="input-with-toggle">
-                <input type="text" id="mgrNewPassword" class="form-input" placeholder="New Manager Password (min 8 chars)" value="Manager@2026" required />
-              </div>
-              <button type="submit" class="btn-secondary" style="justify-content:center; padding:9px; font-size:0.85rem; color:#818cf8; border-color:rgba(99,102,241,0.4);">
-                🔒 Update Manager Credentials
-              </button>
-            </form>
-          </div>
-
-          <!-- 3. GLOBAL PASSWORD OVERRIDE FOR ANY USER -->
-          <div class="audit-table-card" style="border:1px solid rgba(56,189,248,0.3);">
-            <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
-              <span style="font-size:1.2rem;">🔑</span>
-              <h3 style="font-size:1.1rem; font-weight:700; color:#7dd3fc;">Global User Password Override</h3>
-            </div>
-            <p style="font-size:0.78rem; color:var(--text-muted); margin-bottom:12px;">
-              Reset the password for any student or teacher account immediately without email.
-            </p>
-            <form id="mgrOverrideUserPasswordForm" style="display:flex; flex-direction:column; gap:10px;">
-              <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
-                <input type="text" id="mgrOverrideTargetUser" class="form-input" placeholder="User ID or Email" required />
-                <input type="text" id="mgrOverrideNewPass" class="form-input" placeholder="New Password" value="EduGuard@2026" required />
-              </div>
-              <button type="submit" class="btn-secondary" style="justify-content:center; padding:9px; font-size:0.85rem; color:#38bdf8; border-color:rgba(56,189,248,0.4);">
-                🔑 Force Reset User Password
-              </button>
-            </form>
-          </div>
-
-          <!-- 4. SYSTEM BYPASSES & GLOBAL POLICY OVERRIDES -->
-          <div class="audit-table-card" style="border:1px solid rgba(16,185,129,0.3);">
-            <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
-              <span style="font-size:1.2rem;">⚙️</span>
-              <h3 style="font-size:1.1rem; font-weight:700; color:#6ee7b7;">Global System Bypass & Policies</h3>
-            </div>
-            <p style="font-size:0.78rem; color:var(--text-muted); margin-bottom:12px;">
-              Control global AI proctoring, auto-admit lobby bypass, and per-classroom limits.
-            </p>
-            <form id="mgrSystemSettingsForm" style="display:flex; flex-direction:column; gap:10px;">
-              <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.03); padding:6px 10px; border-radius:6px;">
-                <span style="font-size:0.8rem; color:#e2e8f0;">👁️ Global AI Proctoring:</span>
-                <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
-                  <input type="checkbox" id="mgrSettingAiProctoring" checked />
-                  <span style="font-size:0.78rem; color:#a5b4fc;">Active</span>
-                </label>
-              </div>
-              <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.03); padding:6px 10px; border-radius:6px;">
-                <span style="font-size:0.8rem; color:#e2e8f0;">🚪 Auto-Admit Knock Bypass:</span>
-                <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
-                  <input type="checkbox" id="mgrSettingAutoApprove" />
-                  <span style="font-size:0.78rem; color:#a5b4fc;">Direct Join</span>
-                </label>
-              </div>
-              <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
-                <div>
-                  <label style="font-size:0.72rem; color:#94a3b8;">Max Students/Room</label>
-                  <input type="number" id="mgrSettingMaxStudents" class="form-input" value="40" min="1" max="500" style="padding:4px 8px;" />
-                </div>
-                <div>
-                  <label style="font-size:0.72rem; color:#94a3b8;">Max Teachers/Room</label>
-                  <input type="number" id="mgrSettingMaxTeachers" class="form-input" value="2" min="1" max="50" style="padding:4px 8px;" />
-                </div>
-              </div>
-              <button type="submit" class="btn-secondary" style="justify-content:center; padding:7px; font-size:0.8rem; color:#34d399; border-color:rgba(16,185,129,0.4);">
-                💾 Save System Policies
-              </button>
-            </form>
-          </div>
-
-        </div>
-
-        <!-- Master Classroom Emergency Broadcast -->
-        <div class="audit-table-card" style="margin-bottom:1.5rem; border-left:4px solid #f59e0b;">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-            <div style="display:flex; align-items:center; gap:8px;">
-              <span style="font-size:1.2rem;">📢</span>
-              <h3 style="font-size:1.1rem; font-weight:700; color:#fbbf24;">Live Classroom Emergency Broadcast</h3>
-            </div>
-          </div>
-          <form id="mgrBroadcastForm" style="display:flex; gap:8px;">
-            <input type="text" id="mgrBroadcastMessage" class="form-input" placeholder="Type an executive banner announcement to push to all active video classes..." required />
-            <button type="submit" class="btn-primary" style="white-space:nowrap; padding:8px 16px;">
-              🚀 Transmit Alert
-            </button>
-          </form>
-        </div>
-
-        <!-- Registered Users Management Table -->
-        <div class="audit-table-card">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; flex-wrap:wrap; gap:10px;">
-            <div>
-              <h3 style="font-size:1.15rem; font-weight:700; color:#fff;">👥 Institutional User Roster & Deletion</h3>
-              <p style="font-size:0.8rem; color:var(--text-muted);">View, filter, or permanently remove registered candidates from database.</p>
-            </div>
-            <input type="text" id="mgrUserSearchInput" placeholder="🔍 Search name, email or role..." class="form-input" style="max-width:280px; padding:6px 12px; font-size:0.82rem;" />
-          </div>
-
-          <table class="custom-table">
-            <thead>
-              <tr>
-                <th>Candidate Name</th>
-                <th>Email Address</th>
-                <th>Role</th>
-                <th>Institution</th>
-                <th>Status</th>
-                <th style="text-align:right;">Actions</th>
-              </tr>
-            </thead>
-            <tbody id="mgrUsersTableBody">
-              <tr>
-                <td colspan="6" style="text-align:center; color:#64748b; padding:2rem;">Loading institutional users...</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <!-- Live Active Classrooms Monitor -->
-        <div class="audit-table-card">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
-            <div>
-              <h3 style="font-size:1.15rem; font-weight:700; color:#fff;">🏫 Live Concurrent Classrooms Oversight</h3>
-              <p style="font-size:0.8rem; color:var(--text-muted);">Monitor and force terminate any active Google Meet style class session in real-time.</p>
-            </div>
-          </div>
-
-          <div id="mgrActiveRoomsContainer" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(320px, 1fr)); gap:1rem;">
-            <div style="text-align:center; color:#64748b; padding:2rem; grid-column:1/-1;">No live sessions currently in progress.</div>
-          </div>
-        </div>
-
-        <!-- Global Malpractice Audit Log & Wipe -->
-        <div class="audit-table-card">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
-            <div>
-              <h3 style="font-size:1.15rem; font-weight:700; color:#fb7185;">🚨 Institution-Wide Malpractice Incident Records</h3>
-              <p style="font-size:0.8rem; color:var(--text-muted);">All captured violations across all classroom sessions with AI timestamps.</p>
-            </div>
-            <button id="mgrClearAllLogsBtn" class="btn-secondary" style="color:#fb7185; border-color:rgba(244,63,94,0.3); padding:6px 12px; font-size:0.8rem;">
-              🧹 Clear All Audit Logs
-            </button>
-          </div>
-
-          <table class="custom-table">
-            <thead>
-              <tr>
-                <th>Room</th>
-                <th>Student</th>
-                <th>Violation</th>
-                <th>Severity</th>
-                <th>Timestamp</th>
-              </tr>
-            </thead>
-            <tbody id="mgrIncidentsTableBody">
-              <tr>
-                <td colspan="5" style="text-align:center; color:#64748b; padding:2rem;">No infractions recorded.</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-      </div>
-    </section>
-
-  </main>
-
-  <!-- =======================================================
-       INSTITUTIONAL CODE OF CONDUCT & ALL CLASSROOM RULES FOOTER
-       ======================================================= -->
-  <footer class="app-rules-footer" style="background: rgba(10,15,28,0.96); border-top: 1px solid rgba(255,255,255,0.08); padding: 2.5rem 1.5rem 1.5rem; margin-top: 3rem;">
-    <div style="max-width: 1350px; margin: 0 auto;">
-      
-      <!-- Footer Header -->
-      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem; margin-bottom:1.5rem; border-bottom:1px solid rgba(255,255,255,0.06); padding-bottom:1.2rem;">
-        <div style="display:flex; align-items:center; gap:10px;">
-          <span style="font-size:1.6rem;">📜</span>
-          <div>
-            <h3 style="font-size:1.2rem; font-weight:800; color:#fff; font-family:var(--font-heading);">Official Institutional Academic Rules & Guidelines</h3>
-            <p style="font-size:0.8rem; color:#94a3b8;">Mandatory operational code of conduct for Students, Faculty Teachers, and Administrators.</p>
-          </div>
-        </div>
-        <div style="display:flex; align-items:center; gap:8px;">
-          <div class="creator-badge" style="display:inline-flex; align-items:center; gap:6px; background:linear-gradient(135deg, rgba(99,102,241,0.2), rgba(168,85,247,0.25)); border:1px solid rgba(168,85,247,0.45); border-radius:20px; padding:4px 14px;">
-            <span style="font-size:0.75rem;">✨</span>
-            <span style="font-size:0.75rem; font-weight:700; color:#e0e7ff;">Creator: <strong style="color:#38bdf8; text-shadow:0 0 10px rgba(56,189,248,0.5);">Manas Kumar</strong></span>
+          <div class="pwd-checklist">
+            <span id="chkLen" class="pwd-check-item"><span>○</span> 8+ Chars</span>
+            <span id="chkUpper" class="pwd-check-item"><span>○</span> Uppercase</span>
+            <span id="chkLower" class="pwd-check-item"><span>○</span> Lowercase</span>
+            <span id="chkNum" class="pwd-check-item"><span>○</span> Number</span>
+            <span id="chkSym" class="pwd-check-item"><span>○</span> Symbol</span>
           </div>
         </div>
       </div>
 
-      <!-- 6 Institutional Rule Cards Grid -->
-      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap:1.2rem; margin-bottom:2rem;">
-        
-        <!-- Rule 1: Capacity & Google Meet Architecture -->
-        <div style="background:rgba(15,23,42,0.7); border:1px solid rgba(255,255,255,0.06); border-radius:var(--radius-md); padding:1.2rem; border-left:4px solid #6366f1;">
-          <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
-            <span style="font-size:1.1rem;">🏛️</span>
-            <strong style="color:#a5b4fc; font-size:0.92rem;">1. Classroom Session Capacity Limit</strong>
-          </div>
-          <p style="font-size:0.8rem; color:#cbd5e1; line-height:1.6;">
-            Each individual classroom room supports up to <strong>40 Students</strong> and <strong>2 Teachers</strong> concurrently. Multiple concurrent classes (e.g. MATH-101, PHYS-202) can be scheduled and hosted simultaneously by different teachers (Google Meet architecture).
-          </p>
-        </div>
+      <button type="submit" id="authSubmitBtn" class="btn-primary auth-submit-btn">
+        🚀 Enter Proctored Classroom
+      </button>
+    </form>
 
-        <!-- Rule 2: AI Proctoring & Malpractice Thresholds -->
-        <div style="background:rgba(15,23,42,0.7); border:1px solid rgba(255,255,255,0.06); border-radius:var(--radius-md); padding:1.2rem; border-left:4px solid #ef4444;">
-          <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
-            <span style="font-size:1.1rem;">🚨</span>
-            <strong style="color:#fca5a5; font-size:0.92rem;">2. AI Proctoring & Anti-Cheating Rules</strong>
-          </div>
-          <p style="font-size:0.8rem; color:#cbd5e1; line-height:1.6;">
-            Active camera frame presence is required for students. Tab switching away from the exam/lecture is monitored (3 warnings max). Automated evidence snapshots are timestamped and permanently logged in the institutional audit trail.
-          </p>
-        </div>
-
-        <!-- Rule 3: Registration & Email OTP Policy -->
-        <div style="background:rgba(15,23,42,0.7); border:1px solid rgba(255,255,255,0.06); border-radius:var(--radius-md); padding:1.2rem; border-left:4px solid #10b981;">
-          <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
-            <span style="font-size:1.1rem;">📧</span>
-            <strong style="color:#6ee7b7; font-size:0.92rem;">3. Candidate Registration & OTP Policy</strong>
-          </div>
-          <p style="font-size:0.8rem; color:#cbd5e1; line-height:1.6;">
-            Student and Teacher registration is unlimited. All registrations require a verified 6-digit email OTP (valid for 10 minutes). Only authenticated candidates may enter institutional virtual classrooms.
-          </p>
-        </div>
-
-        <!-- Rule 4: Audio/Video Controls & Admission Knocking -->
-        <div style="background:rgba(15,23,42,0.7); border:1px solid rgba(255,255,255,0.06); border-radius:var(--radius-md); padding:1.2rem; border-left:4px solid #38bdf8;">
-          <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
-            <span style="font-size:1.1rem;">🎙️</span>
-            <strong style="color:#7dd3fc; font-size:0.92rem;">4. Mic/Cam Controls & Admission Lobby</strong>
-          </div>
-          <p style="font-size:0.8rem; color:#cbd5e1; line-height:1.6;">
-            Students knock to request classroom entry and wait in the lobby until the host Teacher approves. Both teachers and students have self-controls for mic and camera, while teachers retain remote mute/video overrides.
-          </p>
-        </div>
-
-        <!-- Rule 5: Homework Submission & Academic Integrity -->
-        <div style="background:rgba(15,23,42,0.7); border:1px solid rgba(255,255,255,0.06); border-radius:var(--radius-md); padding:1.2rem; border-left:4px solid #f59e0b;">
-          <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
-            <span style="font-size:1.1rem;">📚</span>
-            <strong style="color:#fcd34d; font-size:0.92rem;">5. Homework & Assignment Submissions</strong>
-          </div>
-          <p style="font-size:0.8rem; color:#cbd5e1; line-height:1.6;">
-            Students can submit and resubmit homework coursework anytime prior to the due date. Teachers review submissions, calculate attendance scores, and generate automated AI performance reports.
-          </p>
-        </div>
-
-        <!-- Rule 6: Manager & Super Admin Governance -->
-        <div style="background:rgba(15,23,42,0.7); border:1px solid rgba(255,255,255,0.06); border-radius:var(--radius-md); padding:1.2rem; border-left:4px solid #8b5cf6;">
-          <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
-            <span style="font-size:1.1rem;">🛡️</span>
-            <strong style="color:#c4b5fd; font-size:0.92rem;">6. Executive Super Admin Governance</strong>
-          </div>
-          <p style="font-size:0.8rem; color:#cbd5e1; line-height:1.6;">
-            Executive Managers hold institutional override authority: instant bypass user provisioning, global password overrides, real-time live classroom termination, and institution-wide emergency broadcast capability.
-          </p>
-        </div>
-
-      </div>
-
-      <!-- Footer Bottom Bar & Creator Credits -->
-      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; border-top:1px solid rgba(255,255,255,0.06); padding-top:1.2rem; font-size:0.8rem; color:#64748b;">
-        <div>
-          © 2026 <strong>EduGuard AI</strong> Academic Proctored Systems. All rights reserved.
-        </div>
-        <div style="display:flex; align-items:center; gap:8px;">
-          <span>Engineered & Architected by</span>
-          <strong style="color:#38bdf8; font-weight:800; font-size:0.85rem; letter-spacing:0.5px;">Manas Kumar</strong>
-        </div>
-      </div>
-
+    <div id="authTogglePrompt" class="auth-toggle-prompt">
+      <span id="authToggleText">Don't have an institution account?</span>
+      <span id="authToggleLink" class="auth-toggle-link">Register Here</span>
     </div>
-  </footer>
 
-  <!-- =======================================================
-       MODALS
-       ======================================================= -->
-
-  <!-- Room Manager / Join Modal -->
-  <div id="roomManagerModal" class="modal-backdrop">
-    <div class="modal-dialog">
-      <div class="modal-header">
-        <h3 class="modal-title">Classroom Room Manager</h3>
-        <button class="modal-close-btn">✕</button>
-      </div>
-      <div class="modal-body">
-        <!-- Active Room Share Card -->
-        <div style="background:rgba(99,102,241,0.1); border:1px solid rgba(99,102,241,0.3); border-radius:var(--radius-md); padding:1rem; margin-bottom:1rem;">
-          <div style="font-size:0.75rem; color:#94a3b8; text-transform:uppercase; font-weight:700;">Active Class Code</div>
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-top:6px; flex-wrap:wrap; gap:8px;">
-            <span id="modalActiveRoomCodeDisplay" style="font-size:1.4rem; font-weight:800; font-family:monospace; color:#818cf8; letter-spacing:1px;">CLASS-101</span>
-            <div style="display:flex; gap:6px;">
-              <button id="modalCopyCodeBtn" class="btn-primary" style="padding:6px 12px; font-size:0.78rem;">
-                📋 Copy Code
-              </button>
-              <button id="modalCopyLinkBtn" class="btn-secondary" style="padding:6px 12px; font-size:0.78rem;">
-                🔗 Copy Link
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label class="form-label">Join Class by Code</label>
-          <div style="display:flex; gap:8px;">
-            <input type="text" id="joinRoomInput" class="form-input" placeholder="e.g. MATH-8492" />
-            <button id="joinRoomBtn" class="btn-primary" style="padding:10px 18px;">Join</button>
-          </div>
-        </div>
-        <div class="teacher-only" style="border-top:1px solid var(--border-subtle); padding-top:1rem; margin-top:0.5rem;">
-          <label class="form-label">Create New Classroom Session</label>
-          <div style="display:flex; flex-direction:column; gap:8px;">
-            <input type="text" id="newRoomTitleInput" class="form-input" placeholder="Lecture Title (e.g. Physics 102)" />
-            <div style="display:flex; gap:8px;">
-              <input type="text" id="newRoomIdInput" class="form-input" placeholder="Room ID (e.g. PHYS-102)" />
-              <button id="modalRandomGenBtn" type="button" class="btn-secondary" style="white-space:nowrap; padding:8px 12px; font-size:0.8rem;">🎲 Random</button>
-            </div>
-            <button id="createNewRoomBtn" class="btn-primary" style="justify-content:center;">Create & Switch Room</button>
-          </div>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn-secondary">Close</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Create Assignment Modal -->
-  <div id="createAssignmentModal" class="modal-backdrop">
-    <div class="modal-dialog">
-      <div class="modal-header">
-        <h3 class="modal-title">Create New Homework / Assignment</h3>
-        <button class="modal-close-btn">✕</button>
-      </div>
-      <form id="createAssignmentForm">
-        <div class="modal-body">
-          <div class="form-group">
-            <label class="form-label">Assignment Title</label>
-            <input type="text" name="title" class="form-input" placeholder="e.g. Calculus: Derivatives & Rates of Change" required />
-          </div>
-          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
-            <div class="form-group">
-              <label class="form-label">Subject</label>
-              <input type="text" name="subject" class="form-input" placeholder="e.g. Mathematics" required />
-            </div>
-            <div class="form-group">
-              <label class="form-label">Total Points</label>
-              <input type="number" name="totalPoints" class="form-input" value="100" required />
-            </div>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Due Date</label>
-            <input type="date" name="dueDate" class="form-input" required />
-          </div>
-          <div class="form-group">
-            <label class="form-label">Instructions / Description</label>
-            <textarea name="description" class="form-textarea" rows="4" placeholder="Specify instructions, reference problems, and required steps..." required></textarea>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn-secondary">Cancel</button>
-          <button type="submit" class="btn-primary">Publish Assignment</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- Submit Homework Modal -->
-  <div id="submitHomeworkModal" class="modal-backdrop">
-    <div class="modal-dialog">
-      <div class="modal-header">
-        <h3 class="modal-title">Submit Homework</h3>
-        <button class="modal-close-btn">✕</button>
-      </div>
-      <form id="submitHomeworkForm">
-        <input type="hidden" name="assignmentId" id="submitModalAsgId" />
-        <div class="modal-body">
-          <h4 id="submitModalAsgTitle" style="color:#818cf8; font-size:1rem;">Assignment</h4>
-          <div class="form-group">
-            <label class="form-label">Your Solution & Answers</label>
-            <textarea name="submissionText" class="form-textarea" rows="6" placeholder="Type your step-by-step answers or calculation summary here..." required></textarea>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Attach File (PDF, Code, or Photos)</label>
-            <input type="file" name="attachment" class="form-input" style="padding:6px;" />
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn-secondary">Cancel</button>
-          <button type="submit" class="btn-primary">Submit to Teacher</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- Teacher Submissions Review Modal -->
-  <div id="teacherSubmissionsModal" class="modal-backdrop">
-    <div class="modal-dialog" style="max-width:850px;">
-      <div class="modal-header">
-        <h3 class="modal-title" id="teacherSubModalTitle">Student Submissions</h3>
-        <button class="modal-close-btn">✕</button>
-      </div>
-      <div class="modal-body">
-        <div id="teacherSubmissionsList" style="display:flex; flex-direction:column; gap:1rem;"></div>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn-secondary">Close</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Student View Submission Modal -->
-  <div id="viewSubmissionModal" class="modal-backdrop">
-    <div class="modal-dialog">
-      <div class="modal-header">
-        <h3 class="modal-title">Submission Details</h3>
-        <button class="modal-close-btn">✕</button>
-      </div>
-      <div class="modal-body">
-        <div><strong>Student:</strong> <span id="viewSubStudentName"></span></div>
-        <div><strong>Status:</strong> <span id="viewSubStatus" class="status-pill status-focused" style="display:inline-block;"></span></div>
-        <div><strong>Score:</strong> <span id="viewSubScore" style="color:var(--accent-purple); font-weight:700;"></span></div>
-        <div style="margin-top:10px;">
-          <label class="form-label">Submitted Work:</label>
-          <div id="viewSubText" style="background:rgba(0,0,0,0.3); padding:10px; border-radius:6px; font-size:0.85rem; color:#cbd5e1;"></div>
-        </div>
-        <div style="margin-top:10px;">
-          <label class="form-label">Teacher Feedback:</label>
-          <div id="viewSubFeedback" style="background:rgba(99,102,241,0.08); padding:10px; border-radius:6px; font-size:0.85rem; color:#818cf8;"></div>
-        </div>
-        <div id="viewSubAIReview" style="margin-top:10px;"></div>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn-secondary">Close</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Create Task Modal -->
-  <div id="createTaskModal" class="modal-backdrop">
-    <div class="modal-dialog">
-      <div class="modal-header">
-        <h3 class="modal-title">Add Study Task</h3>
-        <button class="modal-close-btn">✕</button>
-      </div>
-      <form id="createTaskForm">
-        <div class="modal-body">
-          <div class="form-group">
-            <label class="form-label">Task Title</label>
-            <input type="text" name="taskTitle" class="form-input" placeholder="e.g. Review calculus derivatives problems" required />
-          </div>
-          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
-            <div class="form-group">
-              <label class="form-label">Priority</label>
-              <select name="taskPriority" class="form-select">
-                <option value="high">High Priority</option>
-                <option value="medium" selected>Medium Priority</option>
-                <option value="low">Low Priority</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Due Date</label>
-              <input type="date" name="taskDueDate" class="form-input" required />
-            </div>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn-secondary">Cancel</button>
-          <button type="submit" class="btn-primary">Add Task</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- Snapshot Fullscreen Preview Modal -->
-  <div id="snapshotPreviewModal" class="modal-backdrop">
-    <div class="modal-dialog" style="max-width:700px; text-align:center;">
-      <div class="modal-header">
-        <h3 class="modal-title" id="snapshotModalTitle">Evidence Snapshot</h3>
-        <button class="modal-close-btn">✕</button>
-      </div>
-      <div class="modal-body" style="padding:1rem; align-items:center;">
-        <img id="snapshotModalImg" src="" alt="Snapshot Evidence" style="width:100%; max-height:480px; object-fit:contain; border-radius:8px; border:1px solid rgba(239,68,68,0.5);" />
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn-secondary">Close Preview</button>
-      </div>
-    </div>
   </div>
 
   <div id="toastContainer" class="toast-container"></div>
 
-  <!-- Client-side Scripts -->
-  <script src="/socket.io/socket.io.js"></script>
-  <script src="/js/proctoring.js"></script>
-  <script src="/js/classroom.js"></script>
-  <script src="/js/assignments.js"></script>
-  <script src="/js/reports.js"></script>
-  <script src="/js/manager.js"></script>
-  <script src="/js/app.js"></script>
+  <!-- Auth Portal Logic -->
+  <script src="/js/login.js"></script>
 </body>
 </html>
