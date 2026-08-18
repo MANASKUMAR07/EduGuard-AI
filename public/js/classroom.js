@@ -131,6 +131,15 @@ class ClassroomManager {
       console.log(`Received WebRTC offer from ${callerName} (${callerSocketId})`);
       const pc = await this.createPeerConnection(callerSocketId, callerName, callerRole, false);
       await pc.setRemoteDescription(new RTCSessionDescription(offer));
+
+      // Process any queued ICE candidates
+      if (pc._queuedCandidates && pc._queuedCandidates.length > 0) {
+        for (const c of pc._queuedCandidates) {
+          try { await pc.addIceCandidate(new RTCIceCandidate(c)); } catch(e){}
+        }
+        pc._queuedCandidates = [];
+      }
+
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
 
@@ -145,6 +154,14 @@ class ClassroomManager {
       const pc = this.peerConnections[responderSocketId];
       if (pc) {
         await pc.setRemoteDescription(new RTCSessionDescription(answer));
+
+        // Process any queued ICE candidates
+        if (pc._queuedCandidates && pc._queuedCandidates.length > 0) {
+          for (const c of pc._queuedCandidates) {
+            try { await pc.addIceCandidate(new RTCIceCandidate(c)); } catch(e){}
+          }
+          pc._queuedCandidates = [];
+        }
       }
     });
 
@@ -153,7 +170,12 @@ class ClassroomManager {
       const pc = this.peerConnections[senderSocketId];
       if (pc && candidate) {
         try {
-          await pc.addIceCandidate(new RTCIceCandidate(candidate));
+          if (pc.remoteDescription && pc.remoteDescription.type) {
+            await pc.addIceCandidate(new RTCIceCandidate(candidate));
+          } else {
+            if (!pc._queuedCandidates) pc._queuedCandidates = [];
+            pc._queuedCandidates.push(candidate);
+          }
         } catch (e) {
           console.warn('Error adding ICE candidate:', e);
         }
@@ -308,18 +330,17 @@ class ClassroomManager {
 
     // Immediately dismiss the waiting lobby modal
     this.showWaitingLobbyScreen(false);
-
     window.showToast?.('🎉 Host admitted you to the proctored classroom!', 'success');
 
-    // Join room signaling mesh
-    this.joinRoom(room);
-
-    // Start local camera and AI proctoring
+    // 1. Ensure local camera and microphone stream is fully active BEFORE joining room signaling
     try {
       await this.startCamera('localVideoFeed');
     } catch (err) {
       console.warn('Camera start on admission error:', err);
     }
+
+    // 2. Join room signaling mesh with localStream ready to attach to peer connections
+    this.joinRoom(room);
   }
 
   handleStudentAdmissionDenied(data) {
@@ -380,7 +401,7 @@ class ClassroomManager {
           </p>
 
           <div style="display: flex; flex-direction: column; gap: 8px;">
-            <button class="btn-primary" style="width: 100%; justify-content: center; padding: 10px; font-size: 0.88rem;" onclick="window.classroom.showWaitingLobbyScreen(false); window.classroom.joinRoom('${room}'); window.classroom.startCamera('localVideoFeed'); window.showToast('✅ Admitted to classroom!', 'success');">
+            <button class="btn-primary" style="width: 100%; justify-content: center; padding: 10px; font-size: 0.88rem;" onclick="window.classroom.showWaitingLobbyScreen(false); window.classroom.startCamera('localVideoFeed').then(() => { window.classroom.joinRoom('${room}'); window.showToast('✅ Admitted to classroom!', 'success'); });">
               ⚡ Instant Admit (Demo Simulation)
             </button>
             <div style="display: flex; gap: 8px;">
@@ -413,13 +434,26 @@ class ClassroomManager {
 
     if (this.localStream) {
       this.localStream.getTracks().forEach(track => {
-        pc.addTrack(track, this.localStream);
+        try {
+          pc.addTrack(track, this.localStream);
+        } catch (e) {
+          console.warn('Error adding track to peer connection:', e);
+        }
       });
     }
 
     pc.ontrack = (event) => {
-      const [remoteStream] = event.streams;
-      this.remoteStreams[socketId] = remoteStream;
+      console.log(`📡 Remote media track received (${event.track.kind}) from ${peerName} (${socketId})`);
+      let remoteStream = event.streams && event.streams[0];
+      if (!remoteStream) {
+        if (!this.remoteStreams[socketId]) {
+          this.remoteStreams[socketId] = new MediaStream();
+        }
+        this.remoteStreams[socketId].addTrack(event.track);
+        remoteStream = this.remoteStreams[socketId];
+      } else {
+        this.remoteStreams[socketId] = remoteStream;
+      }
       this.renderRemoteVideoTile(socketId, peerName, peerRole, remoteStream);
     };
 
@@ -493,8 +527,9 @@ class ClassroomManager {
       this.startCamera('localVideoFeed');
       if (this.proctor) this.proctor.stopMonitoring();
     } else {
-      // Students knock and wait in lobby
+      // Students knock, preview camera locally and wait in lobby
       this.showWaitingLobbyScreen(true, this.currentRoomId);
+      this.startCamera('localVideoFeed');
       this.requestStudentJoin(this.currentRoomId);
     }
   }
@@ -526,14 +561,25 @@ class ClassroomManager {
     try {
       if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
         let stream = null;
+        // Resilient UserMedia acquisition: never drop audio unless mic is completely unavailable
         try {
           stream = await navigator.mediaDevices.getUserMedia({
-            video: { width: { ideal: 1280, min: 640 }, height: { ideal: 720, min: 480 }, facingMode: 'user' },
-            audio: true
+            video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' },
+            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
           });
         } catch (e1) {
-          console.warn('Audio+Video failed, retrying video only:', e1);
-          stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+          console.warn('HD Video+Audio failed, retrying basic Video+Audio:', e1);
+          try {
+            stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+          } catch (e2) {
+            console.warn('Basic Video+Audio failed, retrying Video only:', e2);
+            try {
+              stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+            } catch (e3) {
+              console.warn('Video only failed, retrying Audio only:', e3);
+              stream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
+            }
+          }
         }
 
         if (stream) {
@@ -541,17 +587,36 @@ class ClassroomManager {
           videoEl.srcObject = stream;
           await videoEl.play().catch(e => console.warn('Auto-play caught:', e));
 
-          Object.values(this.peerConnections).forEach(pc => {
+          // Attach/update tracks across all active peer connections
+          for (const [socketId, pc] of Object.entries(this.peerConnections)) {
             const senders = pc.getSenders();
+            let addedNewTrack = false;
             stream.getTracks().forEach(track => {
               const sender = senders.find(s => s.track && s.track.kind === track.kind);
               if (sender) {
                 sender.replaceTrack(track);
               } else {
                 pc.addTrack(track, stream);
+                addedNewTrack = true;
               }
             });
-          });
+
+            // If new tracks were added to an existing connection, initiate renegotiation offer
+            if (addedNewTrack && this.socket) {
+              try {
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
+                this.socket.emit('webrtc-offer', {
+                  targetSocketId: socketId,
+                  callerName: this.currentUser.name,
+                  callerRole: this.currentRole,
+                  offer
+                });
+              } catch (renegErr) {
+                console.warn('Renegotiation offer error:', renegErr);
+              }
+            }
+          }
 
           // Mirror to proctoring center inspector video if present
           const inspectVideo = document.getElementById('proctorInspectVideo') || document.getElementById('inspectVideoFeed');
@@ -564,7 +629,7 @@ class ClassroomManager {
           if (this.currentRole === 'student') {
             this.startStudentProctoring();
           }
-          return;
+          return stream;
         }
       }
     } catch (err) {
@@ -679,12 +744,29 @@ class ClassroomManager {
         </div>
       `;
       grid.appendChild(tile);
+    } else {
+      const nameEl = document.getElementById(`nameLabel-${socketId}`);
+      if (nameEl && peerName) nameEl.textContent = peerName;
     }
 
     const videoEl = document.getElementById(`video-${socketId}`);
     if (videoEl && remoteStream) {
-      videoEl.srcObject = remoteStream;
-      videoEl.play().catch(e => console.warn('Remote video play caught:', e));
+      if (videoEl.srcObject !== remoteStream) {
+        videoEl.srcObject = remoteStream;
+      }
+      const playPromise = videoEl.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(e => {
+          console.warn('Remote video playback pending user gesture:', e);
+          const resumeAudioOnInteract = () => {
+            videoEl.play().catch(() => {});
+            window.removeEventListener('click', resumeAudioOnInteract);
+            window.removeEventListener('keydown', resumeAudioOnInteract);
+          };
+          window.addEventListener('click', resumeAudioOnInteract, { once: true });
+          window.addEventListener('keydown', resumeAudioOnInteract, { once: true });
+        });
+      }
     }
   }
 
