@@ -387,11 +387,40 @@
         </div>
 
         <!-- Hero Report Card -->
-        <div class="report-hero-card">
-          <div>
-            <span class="brand-badge" style="margin-left:0;">OFFICIAL INTEGRITY AUDIT</span>
+        <div class="report-hero-card" id="printableReportCard">
+          <div style="flex:1;">
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+              <span class="brand-badge" style="margin-left:0;">OFFICIAL INTEGRITY AUDIT</span>
+              <span style="font-family:var(--font-mono); font-size:0.75rem; color:#818cf8; letter-spacing:0.5px;" id="reportReferenceId">REF: EDU-2026-AUDIT</span>
+            </div>
+            
             <h2 class="report-main-title" style="font-family:var(--font-heading); font-size:1.8rem; font-weight:800; margin:10px 0 5px 0;">Comprehensive Session Report</h2>
-            <p style="color:var(--text-muted); font-size:0.85rem;">Evaluation for Candidate: <strong id="reportStudentName" style="color:#fff;">Alex Johnson</strong></p>
+            <p style="color:var(--text-muted); font-size:0.85rem;">Evaluation for Candidate: <strong id="reportStudentName" style="color:#fff;">Loading Candidate...</strong></p>
+
+            <!-- Verified Candidate Identity Card -->
+            <div style="display:flex; align-items:center; gap:16px; margin:14px 0; padding:12px 16px; background:rgba(15,23,42,0.85); border:1px solid rgba(99,102,241,0.3); border-radius:var(--radius-md); box-shadow:0 4px 15px rgba(0,0,0,0.3);">
+              <!-- Candidate Photo Frame -->
+              <div id="reportStudentPhotoContainer" style="width:70px; height:70px; border-radius:10px; overflow:hidden; border:2px solid #6366f1; background:#1e293b; display:flex; align-items:center; justify-content:center; flex-shrink:0; position:relative;">
+                <img id="reportStudentPhotoImg" src="" alt="Candidate Photo" style="width:100%; height:100%; object-fit:cover; display:none;" />
+                <span id="reportStudentPhotoFallback" style="font-size:1.8rem; font-weight:800; color:#fff;">👨‍🎓</span>
+                <span style="position:absolute; bottom:0; right:0; background:#10b981; color:#fff; font-size:0.55rem; padding:1px 4px; border-radius:3px 0 0 0; font-weight:700;">ID VERIFIED</span>
+              </div>
+              
+              <!-- Candidate Metadata -->
+              <div style="flex:1;">
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <strong id="reportStudentFullName" style="font-size:1.15rem; color:#fff;">Candidate Name</strong>
+                  <span id="reportStatusVerifiedBadge" class="status-pill status-focused" style="font-size:0.68rem;">✓ Verified</span>
+                </div>
+                <div style="font-size:0.8rem; color:#94a3b8; margin-top:3px;">
+                  Email: <span id="reportStudentEmail" style="color:#cbd5e1; font-family:var(--font-mono);">student@eduguard.edu</span> &nbsp;|&nbsp; 
+                  Student ID: <span id="reportStudentId" style="color:#38bdf8; font-family:var(--font-mono); font-weight:700;">stu-001</span>
+                </div>
+                <div style="font-size:0.75rem; color:var(--text-muted); margin-top:2px;">
+                  Institution: <span id="reportStudentInstitution" style="color:#cbd5e1;">Cambridge Academy of Sciences</span>
+                </div>
+              </div>
+            </div>
 
             <div class="report-meta-grid">
               <div class="report-meta-box">
@@ -409,7 +438,7 @@
             </div>
 
             <p id="reportSummaryAssessment" style="font-size:0.88rem; color:#cbd5e1; line-height:1.6; margin-top:10px;">
-              Candidate maintained exemplary visual focus and compliant screen engagement throughout the session. No prohibited external assistance detected.
+              Candidate demonstrated consistent focus and compliant proctored behavior throughout the session.
             </p>
           </div>
 
@@ -420,8 +449,28 @@
           </div>
         </div>
 
+        <!-- Malpractice Photo Evidence Frames Log (Embedded in Report & PDF) -->
+        <div class="audit-table-card" id="reportEvidenceGalleryCard" style="background:var(--bg-glass); border:1px solid rgba(239,68,68,0.25); border-radius:var(--radius-lg); padding:1.25rem 1.5rem; margin-top:1.25rem;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="font-size:1.2rem;">📸</span>
+              <h3 style="font-size:1.05rem; font-weight:700; color:#fff;">Session Malpractice Snapshots & Evidence Log</h3>
+            </div>
+            <span id="reportEvidenceCountBadge" class="status-pill status-focused" style="font-size:0.75rem;">0 Evidence Frames</span>
+          </div>
+          <p style="font-size:0.78rem; color:var(--text-muted); margin-bottom:12px;">
+            Cryptographically timestamped visual frames captured by AI Proctoring during gaze drift, camera absence, and unauthorized multi-face detections.
+          </p>
+          
+          <div id="reportEvidenceGallery" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(180px, 1fr)); gap:12px;">
+            <div style="grid-column:1/-1; text-align:center; color:#10b981; font-size:0.85rem; padding:1.5rem; background:rgba(16,185,129,0.08); border-radius:var(--radius-sm); border:1px dashed rgba(16,185,129,0.3);">
+              ✅ <strong>Verified Clean Session:</strong> Zero malpractice infractions detected. Candidate maintained continuous webcam focus and window compliance.
+            </div>
+          </div>
+        </div>
+
         <!-- Charts Row -->
-        <div class="charts-row">
+        <div class="charts-row" style="margin-top:1.25rem;">
           <div class="chart-card">
             <h4 style="font-size:0.92rem; font-weight:700; color:#fff;">Attention & Focus Timeline (Per Minute)</h4>
             <div class="chart-canvas-wrapper">
@@ -436,8 +485,26 @@
           </div>
         </div>
 
+        <!-- PDF Verification Footer (Visible on Print & PDF) -->
+        <div class="pdf-signature-footer" style="display:none; margin-top:2rem; padding-top:1.5rem; border-top:2px solid #cbd5e1; justify-content:space-between; align-items:flex-end;">
+          <div>
+            <div style="font-size:0.75rem; color:#64748b; text-transform:uppercase; letter-spacing:0.5px;">Supervising Proctor / Teacher</div>
+            <div style="font-weight:700; font-size:0.95rem; color:#0f172a; margin-top:20px; border-top:1px solid #94a3b8; padding-top:4px;" id="reportSignTeacherName">Dr. Evelyn Reed (Verified Faculty)</div>
+          </div>
+          <div style="text-align:center;">
+            <div style="display:inline-block; border:2px solid #10b981; color:#059669; padding:6px 12px; border-radius:6px; font-size:0.75rem; font-weight:800; letter-spacing:1px;">
+              🛡️ EDUGUARD VERIFIED INTEGRITY AUDIT
+            </div>
+            <div style="font-size:0.65rem; color:#64748b; margin-top:4px;">Cryptographically Verified Record</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:0.75rem; color:#64748b; text-transform:uppercase; letter-spacing:0.5px;">Institutional Authority Stamp</div>
+            <div style="font-weight:700; font-size:0.95rem; color:#0f172a; margin-top:20px; border-top:1px solid #94a3b8; padding-top:4px;" id="reportSignDate">Cambridge Academy of Sciences</div>
+          </div>
+        </div>
+
         <!-- Historical 7-Day Session Archive Table -->
-        <div class="audit-table-card">
+        <div class="audit-table-card" style="margin-top:1.25rem;">
           <h4 style="font-size:0.95rem; font-weight:700; margin-bottom:12px;">7-Day Generated Session Archive</h4>
           <table class="custom-table">
             <thead>

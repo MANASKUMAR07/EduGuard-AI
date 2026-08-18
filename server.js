@@ -1109,27 +1109,113 @@ app.get('/api/reports/students', (req, res) => {
   const { roomId } = req.query;
   const targetRoom = (roomId || 'CLASS-101').toUpperCase();
   const participants = activeRoomParticipants[targetRoom] || [];
-  const roomStudents = participants.filter(p => p.role === 'student').map(p => ({ name: p.name, role: p.role }));
   
-  // Also include registered students in DB
-  const allStudents = db.users.filter(u => u.role === 'student').map(u => ({ name: u.name, email: u.email }));
+  // 1. Active students currently in the WebRTC room
+  const activeStudents = participants
+    .filter(p => p.role === 'student')
+    .map(p => {
+      const dbUser = db.users.find(u => u.id === p.studentId || (p.email && u.email.toLowerCase() === p.email.toLowerCase()));
+      return {
+        id: p.studentId || (dbUser ? dbUser.id : `stu-${p.socketId.slice(0, 5)}`),
+        studentId: p.studentId || (dbUser ? dbUser.id : `stu-${p.socketId.slice(0, 5)}`),
+        name: p.name,
+        email: p.email || (dbUser ? dbUser.email : 'student@eduguard.edu'),
+        institution: (dbUser && dbUser.institution) || 'Cambridge Academy of Sciences',
+        photo: p.photo || (dbUser && dbUser.photo) || null,
+        role: 'student',
+        isActiveInClass: true
+      };
+    });
 
-  res.json({ success: true, activeStudents: roomStudents, registeredStudents: allStudents });
+  // 2. All registered students in the database
+  const registeredStudents = db.users
+    .filter(u => u.role === 'student')
+    .map(u => ({
+      id: u.id,
+      studentId: u.id,
+      name: u.name,
+      email: u.email,
+      institution: u.institution || 'Cambridge Academy of Sciences',
+      photo: u.photo || null,
+      role: 'student',
+      isActiveInClass: activeStudents.some(a => a.id === u.id || a.email.toLowerCase() === u.email.toLowerCase())
+    }));
+
+  // Combine and deduplicate
+  const studentMap = new Map();
+  activeStudents.forEach(s => studentMap.set(s.id || s.email, s));
+  registeredStudents.forEach(s => {
+    if (!studentMap.has(s.id || s.email)) {
+      studentMap.set(s.id || s.email, s);
+    }
+  });
+
+  const combinedStudents = Array.from(studentMap.values());
+  res.json({ success: true, activeStudents, registeredStudents, students: combinedStudents });
 });
 
-function buildSessionReport(roomId, studentName, durationMinutes) {
+function buildSessionReport(roomId, targetIdentifier, durationMinutes) {
   const targetRoom = (roomId || 'CLASS-101').toUpperCase();
-  const isAll = !studentName || studentName === 'ALL' || studentName === 'Entire Classroom';
-  const targetStudent = isAll ? `Classroom ${targetRoom} (All Students)` : studentName;
+  const isAll = !targetIdentifier || targetIdentifier === 'ALL' || targetIdentifier === 'Entire Classroom' || targetIdentifier === 'all';
   const now = Date.now();
 
+  let matchedUser = null;
+  if (!isAll) {
+    // Lookup by ID first, then by email, then by exact/case-insensitive name
+    matchedUser = db.users.find(u => 
+      u.id === targetIdentifier || 
+      (u.email && u.email.toLowerCase() === targetIdentifier.toLowerCase()) || 
+      (u.name && u.name.toLowerCase() === targetIdentifier.toLowerCase())
+    );
+
+    // If not found in DB users, check active room participants
+    if (!matchedUser && activeRoomParticipants[targetRoom]) {
+      const p = activeRoomParticipants[targetRoom].find(x => 
+        x.studentId === targetIdentifier || 
+        (x.email && x.email.toLowerCase() === targetIdentifier.toLowerCase()) ||
+        (x.name && x.name.toLowerCase() === targetIdentifier.toLowerCase())
+      );
+      if (p) {
+        matchedUser = {
+          id: p.studentId || targetIdentifier,
+          name: p.name,
+          email: p.email || 'student@eduguard.edu',
+          institution: 'Cambridge Academy of Sciences',
+          photo: p.photo || null
+        };
+      }
+    }
+  }
+
+  const targetDisplayName = matchedUser ? matchedUser.name : (isAll ? `Classroom ${targetRoom} (All Candidates)` : targetIdentifier);
+  const targetEmail = matchedUser ? matchedUser.email : (isAll ? 'all-candidates@eduguard.edu' : 'student@eduguard.edu');
+  const targetStudentId = matchedUser ? matchedUser.id : (isAll ? 'ALL' : targetIdentifier);
+  const targetInstitution = (matchedUser && matchedUser.institution) || 'Cambridge Academy of Sciences';
+
+  // Filter incidents for this room and student
   const filteredIncidents = db.malpracticeIncidents.filter(inc => {
     const itemTime = new Date(inc.timestamp).getTime();
     if ((now - itemTime) > SEVEN_DAYS_MS) return false;
     if (inc.roomId !== targetRoom) return false;
-    if (!isAll && inc.studentName.toLowerCase() !== studentName.toLowerCase()) return false;
+    if (!isAll && matchedUser) {
+      const idMatches = inc.studentId && (inc.studentId === matchedUser.id || inc.studentId === targetIdentifier);
+      const nameMatches = inc.studentName && inc.studentName.toLowerCase() === matchedUser.name.toLowerCase();
+      const emailMatches = inc.studentEmail && matchedUser.email && inc.studentEmail.toLowerCase() === matchedUser.email.toLowerCase();
+      if (!idMatches && !nameMatches && !emailMatches) return false;
+    }
     return true;
   });
+
+  // Candidate photo resolution: profile photo -> latest incident snapshot -> active room photo
+  let candidatePhoto = (matchedUser && matchedUser.photo) || null;
+  if (!candidatePhoto) {
+    const recentSnapshot = filteredIncidents.find(i => i.snapshot && i.snapshot.startsWith('data:image'));
+    if (recentSnapshot) candidatePhoto = recentSnapshot.snapshot;
+  }
+  if (!candidatePhoto && activeRoomParticipants[targetRoom]) {
+    const activeMatch = activeRoomParticipants[targetRoom].find(p => p.studentId === targetStudentId || p.name === targetDisplayName);
+    if (activeMatch && activeMatch.photo) candidatePhoto = activeMatch.photo;
+  }
 
   const tabSwitches = filteredIncidents.filter(i => i.violationType.includes('Tab') || i.violationType.includes('Window') || i.violationType.includes('App')).length;
   const faceDeviations = filteredIncidents.filter(i => i.violationType.includes('Gaze') || i.violationType.includes('Face') || i.violationType.includes('Away') || i.violationType.includes('Left')).length;
@@ -1141,16 +1227,20 @@ function buildSessionReport(roomId, studentName, durationMinutes) {
     calculatedFocus = Math.max(25, Math.min(99, 100 - focusPenalty));
   }
 
-  let integrityStatus = 'Exceptional Focus & Integrity';
-  if (calculatedFocus < 60) integrityStatus = 'High Risk of Malpractice';
+  let integrityStatus = 'Exceptional Focus & Compliance';
+  if (calculatedFocus < 60) integrityStatus = 'High Risk - Academic Integrity Flag';
   else if (calculatedFocus < 80) integrityStatus = 'Moderate Attention Drift';
-  else if (calculatedFocus < 95 && totalViolations > 0) integrityStatus = 'Good Engagement';
+  else if (calculatedFocus < 95 && totalViolations > 0) integrityStatus = 'Acceptable Engagement';
 
   const report = {
     id: `rep-${Date.now()}`,
     roomId: targetRoom,
     classroomId: targetRoom,
-    studentName: targetStudent,
+    studentName: targetDisplayName,
+    studentEmail: targetEmail,
+    studentId: targetStudentId,
+    candidatePhoto,
+    institution: targetInstitution,
     generatedAt: new Date().toISOString(),
     sessionDuration: `${durationMinutes || 45} mins`,
     duration: `${durationMinutes || 45} Mins`,
@@ -1160,19 +1250,19 @@ function buildSessionReport(roomId, studentName, durationMinutes) {
     retentionDaysRemaining: 7,
     metrics: {
       overallFocusScore: `${calculatedFocus}%`,
-      attendanceStatus: isAll ? 'Full Class Session' : 'Present (On-Time)',
+      attendanceStatus: isAll ? 'Full Class Cohort' : 'Verified Present',
       integrityStatus,
       tabSwitchCount: tabSwitches,
       faceAbsenceCount: faceDeviations,
       totalIncidents: totalViolations
     },
-    incidents: filteredIncidents.slice(0, 30),
-    assessment: `During the ${durationMinutes || 45}-minute live proctored session for ${targetStudent}, an attention & conduct index of ${calculatedFocus}% was recorded. ${totalViolations === 0 ? 'Zero malpractice infractions observed across the entire monitoring window.' : `A total of ${totalViolations} live infractions were captured (${tabSwitches} tab switches, ${faceDeviations} camera frame deviations).`}`,
+    incidents: filteredIncidents.slice(0, 40),
+    assessment: `During the ${durationMinutes || 45}-minute live proctored session for ${targetDisplayName} (${targetEmail}), an attention & conduct index of ${calculatedFocus}% was recorded. ${totalViolations === 0 ? 'Zero malpractice infractions observed across the entire monitoring window. Continuous face presence and window compliance verified.' : `A total of ${totalViolations} live infractions were captured (${tabSwitches} tab switches, ${faceDeviations} camera frame deviations). Evidence snapshots attached.`}`,
     attentionTimeline: [calculatedFocus, Math.min(100, calculatedFocus + 2), Math.max(40, calculatedFocus - 3), calculatedFocus, Math.min(100, calculatedFocus + 1)],
     aiAssessment: {
-      summary: `During the ${durationMinutes || 45}-minute live proctored session for ${targetStudent}, an attention & conduct index of ${calculatedFocus}% was recorded. ${totalViolations === 0 ? 'Zero malpractice infractions observed across the entire monitoring window.' : `A total of ${totalViolations} live infractions were captured (${tabSwitches} tab switches, ${faceDeviations} camera frame deviations).`}`,
+      summary: `During the ${durationMinutes || 45}-minute live proctored session for ${targetDisplayName}, an attention & conduct index of ${calculatedFocus}% was recorded. ${totalViolations === 0 ? 'Zero malpractice infractions observed across the entire monitoring window.' : `A total of ${totalViolations} live infractions were captured (${tabSwitches} tab switches, ${faceDeviations} camera frame deviations).`}`,
       teacherActionItems: [
-        totalViolations > 2 ? 'Schedule a 1-on-1 focus counseling check-in regarding tab distractions.' : 'Classroom demonstrated sustained visual focus and authentic academic engagement.',
+        totalViolations > 2 ? 'Schedule a 1-on-1 counseling check-in regarding tab distractions.' : 'Classroom demonstrated sustained visual focus and authentic academic engagement.',
         'Coursework review completed with verified telemetry audit logs.'
       ],
       parentInsights: `Academic performance: ${integrityStatus}. Active engagement verified in ${calculatedFocus}% of the proctored session.`
@@ -1188,14 +1278,14 @@ function buildSessionReport(roomId, studentName, durationMinutes) {
 
 app.get('/api/reports/generate', (req, res) => {
   const { roomId, studentName, studentId, durationMinutes } = req.query;
-  const target = studentName || studentId;
+  const target = studentId || studentName;
   const report = buildSessionReport(roomId, target, durationMinutes);
   res.json({ success: true, report, data: report });
 });
 
 app.post('/api/reports/generate', (req, res) => {
   const { roomId, studentName, studentId, durationMinutes } = req.body;
-  const target = studentName || studentId;
+  const target = studentId || studentName;
   const report = buildSessionReport(roomId, target, durationMinutes);
   res.status(201).json({ success: true, report, data: report });
 });
@@ -1232,8 +1322,8 @@ app.get('*', (req, res) => {
 // ==========================================
 // REAL-TIME WEBRTC SIGNALING & PROCTORING (SOCKET.IO)
 // ==========================================
-const activeRoomParticipants = {}; // roomId -> [ { socketId, name, role, studentId } ]
-const pendingAdmissions = {}; // roomId -> [ { socketId, name, studentId, timestamp } ]
+const activeRoomParticipants = {}; // roomId -> [ { socketId, name, role, studentId, email, photo } ]
+const pendingAdmissions = {}; // roomId -> [ { socketId, name, studentId, email, timestamp } ]
 
 io.on('connection', (socket) => {
   // 1. Student Knocks / Requests to Join with Class Code
@@ -1311,7 +1401,7 @@ io.on('connection', (socket) => {
   });
 
   // 3. Join Classroom Room (Direct for Teachers or Approved Students)
-  socket.on('join-room', ({ roomId, role, name, studentId }) => {
+  socket.on('join-room', ({ roomId, role, name, studentId, email, photo }) => {
     const room = (roomId || 'CLASS-101').toUpperCase();
     const userRole = role || 'student';
 
@@ -1331,6 +1421,7 @@ io.on('connection', (socket) => {
     socket.userRole = userRole;
     socket.userName = name || 'Participant';
     socket.studentId = studentId || `user-${socket.id.slice(0, 5)}`;
+    socket.userEmail = email || (userRole === 'teacher' ? 'teacher@eduguard.edu' : 'student@eduguard.edu');
 
     socket.join(room);
 
@@ -1342,6 +1433,8 @@ io.on('connection', (socket) => {
       name: socket.userName,
       role: socket.userRole,
       studentId: socket.studentId,
+      email: socket.userEmail,
+      photo: photo || null,
       joinedAt: new Date().toISOString(),
       currentFocus: 100
     };
@@ -1367,6 +1460,39 @@ io.on('connection', (socket) => {
         socket.emit('admission-request-received', req);
       });
     }
+  });
+
+  // 3b. Student sends live candidate verification photo
+  socket.on('student-verification-photo', ({ photo }) => {
+    if (photo && socket.roomId && activeRoomParticipants[socket.roomId]) {
+      const p = activeRoomParticipants[socket.roomId].find(x => x.socketId === socket.id);
+      if (p) p.photo = photo;
+    }
+    const user = db.users.find(u => (socket.studentId && u.id === socket.studentId) || (socket.userEmail && u.email.toLowerCase() === socket.userEmail.toLowerCase()));
+    if (user && photo) {
+      user.photo = photo;
+      saveDatabase(db);
+    }
+  });
+
+  // 3c. Teacher Ends Classroom Session
+  socket.on('teacher-end-session', ({ roomId, durationMinutes }) => {
+    const targetRoom = (roomId || socket.roomId || 'CLASS-101').toUpperCase();
+    console.log(`🛑 Teacher concluded session for room ${targetRoom}`);
+
+    // Generate comprehensive session report for classroom
+    const sessionReport = buildSessionReport(targetRoom, 'ALL', durationMinutes || 45);
+
+    io.to(targetRoom).emit('session-ended-by-teacher', {
+      roomId: targetRoom,
+      teacherName: socket.userName || 'Faculty Teacher',
+      message: `The classroom session ${targetRoom} was officially concluded by ${socket.userName || 'the teacher'}.`,
+      reportId: sessionReport.id
+    });
+
+    // Clean up active participants for this room
+    delete activeRoomParticipants[targetRoom];
+    delete pendingAdmissions[targetRoom];
   });
 
   // 4. Real WebRTC Signaling Mesh (Offers, Answers, ICE Candidates)
@@ -1397,9 +1523,10 @@ io.on('connection', (socket) => {
   socket.on('malpractice-event', (data) => {
     const payload = {
       id: `inc-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-      roomId: socket.roomId || 'CLASS-101',
-      studentId: socket.studentId || data.studentId || 'stu-001',
-      studentName: socket.userName || data.studentName || 'Student',
+      roomId: socket.roomId || data.roomId || 'CLASS-101',
+      studentId: data.studentId || socket.studentId || 'stu-001',
+      studentName: data.studentName || socket.userName || 'Student',
+      studentEmail: data.studentEmail || socket.userEmail || 'student@eduguard.edu',
       violationType: data.violationType || 'Tab Switch Detected',
       severity: data.severity || 'High',
       snapshot: data.snapshot || null,
@@ -1411,8 +1538,8 @@ io.on('connection', (socket) => {
     if (db.malpracticeIncidents.length > 500) db.malpracticeIncidents.pop();
     saveDatabase(db);
 
-    // Broadcast only to teacher roles in room
-    io.to(socket.roomId).emit('malpractice-alert-teacher', payload);
+    // Broadcast to teacher roles in room
+    io.to(payload.roomId).emit('malpractice-alert-teacher', payload);
   });
 
   // 4. Whiteboard Sync

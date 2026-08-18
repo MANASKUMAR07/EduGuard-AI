@@ -506,16 +506,33 @@ class ClassroomManager {
     this.showWaitingLobbyScreen(false);
   }
 
-  setRole(newRole, userName = '', userEmail = '') {
+  setRole(newRole, userName = '', userEmail = '', userId = '') {
     this.cleanupSession();
     this.isAuthenticated = true;
     this.currentRole = newRole;
+
+    let sessionUser = null;
+    try {
+      const raw = localStorage.getItem('eduguard_user');
+      if (raw) sessionUser = JSON.parse(raw);
+    } catch(e){}
+
+    const finalName = userName || (sessionUser && sessionUser.name) || (newRole === 'teacher' ? 'Dr. Evelyn Reed' : 'Alex Johnson');
+    const finalEmail = userEmail || (sessionUser && sessionUser.email) || (newRole === 'teacher' ? 'teacher@eduguard.edu' : 'student@eduguard.edu');
+    const finalId = userId || (sessionUser && sessionUser.id) || (newRole === 'teacher' ? 't-001' : 'stu-001');
+
     this.currentUser = {
-      name: userName || (newRole === 'teacher' ? 'Dr. Evelyn Reed' : 'Alex Johnson'),
-      email: userEmail || (newRole === 'teacher' ? 'teacher@eduguard.edu' : 'student@eduguard.edu'),
-      id: newRole === 'teacher' ? 't-001' : 'stu-001',
-      role: newRole
+      name: finalName,
+      email: finalEmail,
+      id: finalId,
+      role: newRole,
+      institution: (sessionUser && sessionUser.institution) || 'Cambridge Academy of Sciences'
     };
+
+    const tileName = document.getElementById('localTileName');
+    if (tileName) {
+      tileName.textContent = `${this.currentUser.name} (You)`;
+    }
 
     const isTeacher = newRole === 'teacher' || newRole === 'manager';
     const isManager = newRole === 'manager';
@@ -541,7 +558,8 @@ class ClassroomManager {
       roomId: this.currentRoomId,
       role: this.currentRole,
       name: this.currentUser.name,
-      studentId: this.currentUser.id
+      studentId: this.currentUser.id,
+      email: this.currentUser.email
     });
 
     const label1 = document.getElementById('currentRoomCodeLabel');
@@ -554,87 +572,77 @@ class ClassroomManager {
     const videoEl = document.getElementById(videoElementId);
     if (!videoEl) return;
 
-    videoEl.muted = true;
-    videoEl.autoplay = true;
-    videoEl.playsInline = true;
+    // Reset local stream safely
+    if (this.localStream) {
+      this.localStream.getTracks().forEach(t => t.stop());
+      this.localStream = null;
+    }
 
-    try {
-      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-        let stream = null;
-        // Resilient UserMedia acquisition: never drop audio unless mic is completely unavailable
-        try {
-          stream = await navigator.mediaDevices.getUserMedia({
-            video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' },
-            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
-          });
-        } catch (e1) {
-          console.warn('HD Video+Audio failed, retrying basic Video+Audio:', e1);
-          try {
-            stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-          } catch (e2) {
-            console.warn('Basic Video+Audio failed, retrying Video only:', e2);
-            try {
-              stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-            } catch (e3) {
-              console.warn('Video only failed, retrying Audio only:', e3);
-              stream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
-            }
-          }
-        }
+    // 4-Step Resilient WebRTC Device Constraint Fallback Chain
+    const constraintPresets = [
+      { video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } }, audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } },
+      { video: { width: { ideal: 640 }, height: { ideal: 480 } }, audio: true },
+      { video: true, audio: false },
+      { video: false, audio: true }
+    ];
 
+    let stream = null;
+    for (const constraints of constraintPresets) {
+      try {
+        console.log('Attempting getUserMedia with constraints:', constraints);
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
         if (stream) {
-          this.localStream = stream;
-          videoEl.srcObject = stream;
-          await videoEl.play().catch(e => console.warn('Auto-play caught:', e));
-
-          // Attach/update tracks across all active peer connections
-          for (const [socketId, pc] of Object.entries(this.peerConnections)) {
-            const senders = pc.getSenders();
-            let addedNewTrack = false;
-            stream.getTracks().forEach(track => {
-              const sender = senders.find(s => s.track && s.track.kind === track.kind);
-              if (sender) {
-                sender.replaceTrack(track);
-              } else {
-                pc.addTrack(track, stream);
-                addedNewTrack = true;
-              }
-            });
-
-            // If new tracks were added to an existing connection, initiate renegotiation offer
-            if (addedNewTrack && this.socket) {
-              try {
-                const offer = await pc.createOffer();
-                await pc.setLocalDescription(offer);
-                this.socket.emit('webrtc-offer', {
-                  targetSocketId: socketId,
-                  callerName: this.currentUser.name,
-                  callerRole: this.currentRole,
-                  offer
-                });
-              } catch (renegErr) {
-                console.warn('Renegotiation offer error:', renegErr);
-              }
-            }
-          }
-
-          // Mirror to proctoring center inspector video if present
-          const inspectVideo = document.getElementById('proctorInspectVideo') || document.getElementById('inspectVideoFeed');
-          if (inspectVideo) {
-            inspectVideo.srcObject = stream;
-            inspectVideo.play().catch(() => {});
-          }
-
-          // Start proctoring engine for student
-          if (this.currentRole === 'student') {
-            this.startStudentProctoring();
-          }
-          return stream;
+          console.log(`✅ getUserMedia succeeded with video=${stream.getVideoTracks().length > 0}, audio=${stream.getAudioTracks().length > 0}`);
+          break;
         }
+      } catch (err) {
+        console.warn('getUserMedia preset failed:', constraints, err.name, err.message);
       }
-    } catch (err) {
-      console.warn('Webcam permission not granted or device not available:', err);
-      window.showToast?.('Camera permission needed for live video & proctoring verification.', 'warning');
+    }
+
+    if (!stream) {
+      window.showToast?.('Camera / Microphone permission denied or device not found.', 'warning');
+      return;
+    }
+
+    this.localStream = stream;
+    videoEl.srcObject = stream;
+    try {
+      await videoEl.play();
+    } catch(e) {
+      console.warn('Local video play warning:', e);
+    }
+
+    // Replace tracks or add to all active peer connections
+    for (const [peerId, pc] of Object.entries(this.peerConnections)) {
+      try {
+        const senders = pc.getSenders();
+        let needsRenegotiation = false;
+
+        this.localStream.getTracks().forEach(track => {
+          const sender = senders.find(s => s.track && s.track.kind === track.kind);
+          if (sender) {
+            sender.replaceTrack(track).catch(err => console.warn('replaceTrack warning:', err));
+          } else {
+            pc.addTrack(track, this.localStream);
+            needsRenegotiation = true;
+          }
+        });
+
+        // Automatically renegotiate offer if new track types were added
+        if (needsRenegotiation && this.socket && (this.currentRole === 'teacher' || this.currentRole === 'student')) {
+          console.log(`Renegotiating WebRTC offer for peer ${peerId} after local camera started...`);
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          this.socket.emit('webrtc-offer', { targetSocketId: peerId, offer });
+        }
+      } catch(err) {
+        console.warn('Error syncing tracks with peer:', peerId, err);
+      }
+    }
+
+    if (this.currentRole === 'student') {
+      this.startStudentProctoring();
     }
   }
 
@@ -654,6 +662,7 @@ class ClassroomManager {
               ...violationData,
               studentName: this.currentUser.name,
               studentId: this.currentUser.id,
+              studentEmail: this.currentUser.email,
               roomId: this.currentRoomId
             });
           }
@@ -666,6 +675,16 @@ class ClassroomManager {
     }
 
     this.proctor.startMonitoring(videoEl, canvasEl);
+
+    // Capture initial candidate verification photo after camera stabilizes
+    setTimeout(() => {
+      if (this.proctor && this.socket) {
+        const photo = this.proctor.captureCurrentSnapshot();
+        if (photo) {
+          this.socket.emit('student-verification-photo', { photo });
+        }
+      }
+    }, 2500);
   }
 
   updateHUDTelemetry(t) {

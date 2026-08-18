@@ -33,7 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Initialize Classroom as Student
   if (window.classroom) {
     if (user.roomId) window.classroom.currentRoomId = user.roomId;
-    window.classroom.setRole('student', user.name, user.email);
+    window.classroom.setRole('student', user.name, user.email, user.id);
   }
 
   // Initialize Assignments & Tasks

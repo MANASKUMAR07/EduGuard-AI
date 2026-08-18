@@ -29,7 +29,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Initialize Classroom as Teacher
   if (window.classroom) {
-    window.classroom.setRole('teacher', user.name, user.email);
+    window.classroom.setRole('teacher', user.name, user.email, user.id);
   }
 
   // Initialize Assignments & Reports

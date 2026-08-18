@@ -2178,4 +2178,30 @@ body {
     border-color: #fca5a5 !important;
     background: #fef2f2 !important;
   }
+
+  .pdf-signature-footer {
+    display: flex !important;
+    page-break-inside: avoid;
+  }
+
+  #reportStudentPhotoContainer {
+    background: #f1f5f9 !important;
+    border: 2px solid #6366f1 !important;
+  }
+
+  #reportStudentPhotoImg {
+    display: block !important;
+    max-width: 100% !important;
+  }
+
+  #reportEvidenceGallery > div {
+    background: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    color: #0f172a !important;
+    page-break-inside: avoid;
+  }
+
+  #reportEvidenceGallery img {
+    border: 1px solid #94a3b8 !important;
+  }
 }
