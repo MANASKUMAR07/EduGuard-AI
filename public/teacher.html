@@ -125,9 +125,14 @@
                   <span class="participant-tag">
                     <span>👩‍🏫</span> <span id="localTileName">Dr. Evelyn Reed (Host)</span>
                   </span>
-                  <span class="status-pill status-focused" id="localProctorStatus">
-                    ● Live Stream
-                  </span>
+                  <div style="display:flex; align-items:center; gap:6px;">
+                    <button class="pin-tile-btn" id="pinBtn-local" onclick="window.classroom.togglePinTile('local')" title="Pin / Unpin this video stage">
+                      📌 Pin
+                    </button>
+                    <span class="status-pill status-focused" id="localProctorStatus">
+                      ● Live Stream
+                    </span>
+                  </div>
                 </div>
                 <div class="video-overlay-bottom">
                   <div class="focus-meter-mini">

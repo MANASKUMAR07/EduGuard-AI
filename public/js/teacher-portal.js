@@ -98,6 +98,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Logout Action
   document.getElementById('headerLogoutBtn')?.addEventListener('click', () => {
+    if (window.classroom?.socket) {
+      window.classroom.socket.emit('teacher-end-session', { roomId: window.classroom.currentRoomId });
+    }
     localStorage.removeItem('eduguard_user');
     window.classroom?.cleanupSession();
     window.location.href = '/index.html';

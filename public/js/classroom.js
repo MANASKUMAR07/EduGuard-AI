@@ -43,6 +43,7 @@ class ClassroomManager {
     this.proctor = null;
     this.activeIncidents = [];
     this.participants = [];
+    this.pinnedTileId = null;
 
     this.initSocket();
     this.initClassroomDOM();
@@ -68,28 +69,19 @@ class ClassroomManager {
       }
     });
 
-    // 1. Waiting for Teacher Approval (Student Side)
-    this.socket.on('waiting-for-teacher-approval', (data) => {
-      this.showWaitingLobbyScreen(true, data.roomId);
-    });
-
-    // 2. Admission Approved by Teacher (Student Side)
+    // 1. Admission Approved (Student Side)
     this.socket.on('admission-approved', async (data) => {
-      this.showWaitingLobbyScreen(false);
-      window.showToast?.('🎉 Teacher admitted you into the live classroom!', 'success');
-      try {
-        await this.startCamera('localVideoFeed');
-      } catch (err) {
-        console.warn('Camera start error:', err);
-      }
-      this.joinRoom(data.roomId);
+      this.handleStudentAdmissionSuccess(data);
     });
 
-    // 3. Admission Rejected by Teacher (Student Side)
+    // 2. Admission Rejected (Student Side)
     this.socket.on('admission-rejected', (data) => {
-      this.showWaitingLobbyScreen(false);
-      alert(`❌ Admission Declined:\n\n${data.message || 'The teacher declined your admission request.'}`);
-      window.showToast?.('Admission request was declined by teacher.', 'danger');
+      this.handleStudentAdmissionDenied(data);
+    });
+
+    // 3. Admission Request Sent (Waiting Screen for Student)
+    this.socket.on('admission-request-pending', (data) => {
+      window.showToast?.(`Admission request sent to teacher host (${data.roomId}). Waiting for permission...`, 'info');
     });
 
     // 4. Admission Request Received (Teacher Side)
@@ -102,6 +94,26 @@ class ClassroomManager {
     // 4b. Session Concluded By Teacher
     this.socket.on('session-ended-by-teacher', (data) => {
       this.handleSessionEndedByTeacher(data);
+    });
+
+    // 4c. Peer Screen Share Status
+    this.socket.on('user-screen-share-status', ({ socketId, name, role, isSharing }) => {
+      const tile = document.getElementById(`tile-${socketId}`);
+      const badge = document.getElementById(`screenBadge-${socketId}`);
+      if (isSharing) {
+        tile?.classList.add('is-screen-sharing');
+        if (badge) badge.style.display = 'inline-flex';
+        window.showToast?.(`🖥️ ${name} (${role}) started screen sharing. Click "📌 Pin" to spotlight.`, 'info');
+        if (!this.pinnedTileId) {
+          this.togglePinTile(socketId);
+        }
+      } else {
+        tile?.classList.remove('is-screen-sharing');
+        if (badge) badge.style.display = 'none';
+        if (this.pinnedTileId === socketId) {
+          this.togglePinTile(socketId);
+        }
+      }
     });
 
     // 5. Room Roster Update
@@ -608,11 +620,17 @@ class ClassroomManager {
         <video id="video-${socketId}" autoplay playsinline style="width:100%; height:100%; object-fit:cover; display:block;"></video>
         <div class="video-overlay-top">
           <div class="participant-tag">
-            <span>${peerName}</span>
+            <span id="nameLabel-${socketId}">${peerName}</span>
             <span style="font-size:0.68rem; color:${peerRole === 'teacher' ? '#818cf8' : '#38bdf8'}">(${peerRole})</span>
+            <span id="screenBadge-${socketId}" style="display:none;" class="screen-share-badge">🖥️ Sharing</span>
           </div>
-          <div class="status-pill status-focused" id="pill-${socketId}">
-            ● Live Stream
+          <div style="display:flex; align-items:center; gap:6px;">
+            <button class="pin-tile-btn" id="pinBtn-${socketId}" onclick="window.classroom.togglePinTile('${socketId}')" title="Pin / Spotlight this screen">
+              📌 Pin
+            </button>
+            <div class="status-pill status-focused" id="pill-${socketId}">
+              ● Live Stream
+            </div>
           </div>
         </div>
         <div class="video-overlay-bottom">
@@ -628,6 +646,53 @@ class ClassroomManager {
     if (videoEl && remoteStream) {
       videoEl.srcObject = remoteStream;
       videoEl.play().catch(e => console.warn('Remote video play caught:', e));
+    }
+  }
+
+  togglePinTile(targetId) {
+    const grid = document.getElementById('videoGridContainer') || document.getElementById('classroomVideoGrid');
+    if (!grid) return;
+
+    const tileId = targetId === 'local' ? 'localVideoTile' : `tile-${targetId}`;
+    const targetTile = document.getElementById(tileId);
+    const pinBtn = document.getElementById(`pinBtn-${targetId}`);
+
+    if (this.pinnedTileId === targetId) {
+      // Already pinned -> Unpin back to grid
+      this.pinnedTileId = null;
+      grid.classList.remove('pinned-active');
+      document.querySelectorAll('.video-tile').forEach(t => t.classList.remove('is-pinned', 'is-thumbnail'));
+      document.querySelectorAll('.pin-tile-btn').forEach(btn => btn.innerHTML = '📌 Pin');
+      window.showToast?.('Restored standard multi-video grid view.', 'info');
+    } else {
+      // Pin this specific video / screen share
+      this.pinnedTileId = targetId;
+      grid.classList.add('pinned-active');
+      document.querySelectorAll('.video-tile').forEach(t => {
+        if (t.id === tileId) {
+          t.classList.add('is-pinned');
+          t.classList.remove('is-thumbnail');
+        } else {
+          t.classList.remove('is-pinned');
+          t.classList.add('is-thumbnail');
+        }
+      });
+      document.querySelectorAll('.pin-tile-btn').forEach(btn => btn.innerHTML = '📌 Pin');
+      if (pinBtn) pinBtn.innerHTML = '✖️ Unpin';
+      window.showToast?.('📌 Pinned screen share to full stage view.', 'success');
+    }
+  }
+
+  handleSessionEndedByTeacher(data) {
+    console.log('Classroom session concluded by teacher host:', data);
+    if (this.currentRole === 'student') {
+      try {
+        this.cleanupSession();
+      } catch (e) {
+        console.warn('Cleanup session error:', e);
+      }
+      alert(`🔴 CLASSROOM CONCLUDED\n\n${data?.message || 'The host teacher has left the meeting. You have been automatically logged out of the session.'}`);
+      window.location.href = '/student.html';
     }
   }
 
@@ -745,10 +810,17 @@ class ClassroomManager {
           });
           const localVideo = document.getElementById('localVideoFeed');
           if (localVideo) localVideo.srcObject = screenStream;
+          document.getElementById('localVideoTile')?.classList.add('is-screen-sharing');
+
           screenTrack.onended = () => this.stopScreenSharing();
           this.isScreenSharing = true;
           screenBtn.classList.add('btn-active');
-          window.showToast?.('Screen sharing active', 'info');
+          if (this.socket) {
+            this.socket.emit('toggle-screen-share', { isSharing: true });
+          }
+          // Automatically spotlight/pin screen share
+          this.togglePinTile('local');
+          window.showToast?.('🖥️ Screen sharing active & spotlighted', 'info');
         } else {
           this.stopScreenSharing();
         }
@@ -847,6 +919,13 @@ class ClassroomManager {
     if (btn) {
       btn.classList.remove('btn-active');
       btn.innerHTML = '<span>🖥️</span> Share Screen';
+    }
+    document.getElementById('localVideoTile')?.classList.remove('is-screen-sharing');
+    if (this.socket) {
+      this.socket.emit('toggle-screen-share', { isSharing: false });
+    }
+    if (this.pinnedTileId === 'local') {
+      this.togglePinTile('local');
     }
     if (this.localStream) {
       const camTrack = this.localStream.getVideoTracks()[0];

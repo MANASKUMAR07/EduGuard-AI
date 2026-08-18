@@ -486,7 +486,7 @@ body {
   aspect-ratio: 16 / 9;
   min-height: 220px;
   box-shadow: var(--shadow-sm);
-  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .video-tile:hover {
@@ -515,6 +515,103 @@ body {
   left: 0;
   z-index: 1;
   transform: scaleX(-1);
+}
+
+/* Pinned / Spotlight Screen Sharing Mode */
+.video-grid-view.pinned-active {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 12px;
+  padding: 12px;
+  overflow-y: auto;
+}
+
+.video-tile.is-pinned {
+  flex: 1 1 auto;
+  min-height: 440px;
+  max-height: calc(100vh - 240px);
+  width: 100%;
+  aspect-ratio: auto;
+  border: 2px solid #6366f1 !important;
+  box-shadow: 0 0 35px rgba(99, 102, 241, 0.4) !important;
+  z-index: 10;
+}
+
+.video-tile.is-pinned video {
+  object-fit: contain !important;
+  background: #060911 !important;
+}
+
+.video-tile.is-screen-sharing video {
+  transform: none !important; /* Screen sharing text must NOT be mirrored */
+  object-fit: contain !important;
+}
+
+.video-grid-view.pinned-active .video-tile.is-thumbnail {
+  flex: 0 0 115px;
+  height: 115px;
+  min-height: 115px;
+  max-height: 115px;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sm);
+}
+
+.video-grid-view.pinned-active #remoteVideosWrapper {
+  display: flex !important;
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+  flex-shrink: 0;
+}
+
+/* Pin Action Buttons */
+.pin-tile-btn {
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(8px);
+}
+
+.pin-tile-btn:hover {
+  background: var(--accent-primary);
+  border-color: var(--accent-primary-hover);
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+.pin-tile-btn.active {
+  background: #6366f1;
+  color: #fff;
+  border-color: #818cf8;
+}
+
+.screen-share-badge {
+  background: linear-gradient(135deg, #3b82f6, #6366f1);
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+  animation: pulseBadge 2s infinite;
+}
+
+@keyframes pulseBadge {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.75; }
 }
 
 .video-tile canvas.ai-overlay-canvas {

@@ -1346,6 +1346,16 @@ io.on('connection', (socket) => {
     });
   });
 
+  // 6b. Screen Share Toggle Broadcast
+  socket.on('toggle-screen-share', ({ isSharing }) => {
+    socket.to(socket.roomId).emit('user-screen-share-status', {
+      socketId: socket.id,
+      name: socket.userName,
+      role: socket.userRole,
+      isSharing
+    });
+  });
+
   // 7. Teacher Remote Control of Student Camera & Mic
   socket.on('teacher-control-media', ({ targetSocketId, roomId, mediaType, state }) => {
     if (targetSocketId) {
@@ -1380,20 +1390,32 @@ io.on('connection', (socket) => {
   });
 
   // 9. Teacher Explicitly Concludes / Ends Meeting for All Participants
-  socket.on('end-classroom-session', ({ roomId }) => {
+  socket.on('teacher-end-session', ({ roomId }) => {
     const room = (roomId || socket.roomId || 'CLASS-101').toUpperCase();
     io.to(room).emit('session-ended-by-teacher', {
       roomId: room,
       teacherName: socket.userName || 'Faculty Teacher',
-      message: `The classroom session ${room} has been concluded by ${socket.userName || 'the teacher'}.`
+      message: `The host teacher (${socket.userName || 'Faculty Teacher'}) has concluded the meeting. The classroom session has ended.`
     });
     delete activeRoomParticipants[room];
     delete pendingAdmissions[room];
   });
 
-  // 9. Disconnect & Cleanup
+  socket.on('end-classroom-session', ({ roomId }) => {
+    const room = (roomId || socket.roomId || 'CLASS-101').toUpperCase();
+    io.to(room).emit('session-ended-by-teacher', {
+      roomId: room,
+      teacherName: socket.userName || 'Faculty Teacher',
+      message: `The host teacher (${socket.userName || 'Faculty Teacher'}) has concluded the meeting. The classroom session has ended.`
+    });
+    delete activeRoomParticipants[room];
+    delete pendingAdmissions[room];
+  });
+
+  // 10. Disconnect & Cleanup (Auto-leave students if host teacher disconnects)
   socket.on('disconnect', () => {
     if (socket.roomId && activeRoomParticipants[socket.roomId]) {
+      const isTeacher = socket.userRole === 'teacher';
       activeRoomParticipants[socket.roomId] = activeRoomParticipants[socket.roomId].filter(p => p.socketId !== socket.id);
       
       io.to(socket.roomId).emit('room-roster-update', {
@@ -1404,6 +1426,20 @@ io.on('connection', (socket) => {
         socketId: socket.id,
         name: socket.userName
       });
+
+      // If the departing participant was a teacher, check if any teachers remain in the room
+      if (isTeacher) {
+        const remainingTeachers = (activeRoomParticipants[socket.roomId] || []).filter(p => p.role === 'teacher');
+        if (remainingTeachers.length === 0) {
+          io.to(socket.roomId).emit('session-ended-by-teacher', {
+            roomId: socket.roomId,
+            teacherName: socket.userName || 'Faculty Teacher',
+            message: `The host teacher (${socket.userName || 'Faculty Teacher'}) has left the meeting. The classroom session has ended.`
+          });
+          delete activeRoomParticipants[socket.roomId];
+          delete pendingAdmissions[socket.roomId];
+        }
+      }
     }
   });
 });
