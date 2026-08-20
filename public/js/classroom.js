@@ -461,12 +461,23 @@ class ClassroomManager {
       pc = new RTCPeerConnection(ICE_SERVERS);
       this.peerConnections[socketId] = pc;
 
-      // Add transceivers to guarantee audio & video negotiation
-      try {
-        pc.addTransceiver('audio', { direction: 'sendrecv' });
-        pc.addTransceiver('video', { direction: 'sendrecv' });
-      } catch (e) {
-        console.warn('Transceiver setup notice:', e);
+      // 1. If local stream already active, attach live tracks directly
+      if (this.localStream) {
+        this.localStream.getTracks().forEach(track => {
+          try {
+            pc.addTrack(track, this.localStream);
+          } catch (e) {
+            console.warn('Track initial add warning:', e);
+          }
+        });
+      } else {
+        // Otherwise add transceivers to guarantee audio & video negotiation
+        try {
+          pc.addTransceiver('audio', { direction: 'sendrecv' });
+          pc.addTransceiver('video', { direction: 'sendrecv' });
+        } catch (e) {
+          console.warn('Transceiver setup notice:', e);
+        }
       }
 
       pc.ontrack = (event) => {
@@ -508,10 +519,8 @@ class ClassroomManager {
           }).catch(err => console.warn('ICE restart error:', err));
         }
       };
-    }
-
-    // Attach local stream tracks to transceivers / senders
-    if (this.localStream) {
+    } else if (this.localStream) {
+      // Update senders for existing connection
       const senders = pc.getSenders();
       this.localStream.getTracks().forEach(track => {
         const sender = senders.find(s => s.track && s.track.kind === track.kind);
@@ -631,11 +640,23 @@ class ClassroomManager {
 
   async startCamera(videoElementId = 'localVideoFeed') {
     const videoEl = document.getElementById(videoElementId);
-    if (!videoEl) return;
 
-    // Reset local stream safely
+    // 1. Check if we ALREADY have a healthy, live camera & microphone stream
+    const hasLiveVideo = this.localStream && this.localStream.getVideoTracks().some(t => t.readyState === 'live');
+    const hasLiveAudio = this.localStream && this.localStream.getAudioTracks().some(t => t.readyState === 'live');
+
+    if (hasLiveVideo && hasLiveAudio) {
+      console.log('✅ Reusing existing active camera and microphone stream without interruption.');
+      if (videoEl && videoEl.srcObject !== this.localStream) {
+        videoEl.srcObject = this.localStream;
+        await videoEl.play().catch(() => {});
+      }
+      return this.localStream;
+    }
+
+    // Only stop dead tracks if necessary
     if (this.localStream) {
-      this.localStream.getTracks().forEach(t => t.stop());
+      this.localStream.getTracks().forEach(t => { try { t.stop(); } catch(e){} });
       this.localStream = null;
     }
 
@@ -643,8 +664,8 @@ class ClassroomManager {
     const constraintPresets = [
       { video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } }, audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } },
       { video: { width: { ideal: 640 }, height: { ideal: 480 } }, audio: true },
-      { video: true, audio: false },
-      { video: false, audio: true }
+      { video: true, audio: true },
+      { video: true, audio: false }
     ];
 
     let stream = null;
@@ -663,18 +684,20 @@ class ClassroomManager {
 
     if (!stream) {
       window.showToast?.('Camera / Microphone permission denied or device not found.', 'warning');
-      return;
+      return null;
     }
 
     this.localStream = stream;
-    videoEl.srcObject = stream;
-    try {
-      await videoEl.play();
-    } catch(e) {
-      console.warn('Local video play warning:', e);
+    if (videoEl) {
+      videoEl.srcObject = stream;
+      try {
+        await videoEl.play();
+      } catch(e) {
+        console.warn('Local video play warning:', e);
+      }
     }
 
-    // Replace tracks or add to all active peer connections
+    // Attach fresh tracks to all active peer connections
     for (const [peerId, pc] of Object.entries(this.peerConnections)) {
       try {
         const senders = pc.getSenders();
@@ -690,12 +713,17 @@ class ClassroomManager {
           }
         });
 
-        // Automatically renegotiate offer if new track types were added
+        // Renegotiate offer if tracks were freshly added
         if (needsRenegotiation && this.socket && (this.currentRole === 'teacher' || this.currentRole === 'student')) {
           console.log(`Renegotiating WebRTC offer for peer ${peerId} after local camera started...`);
           const offer = await pc.createOffer();
           await pc.setLocalDescription(offer);
-          this.socket.emit('webrtc-offer', { targetSocketId: peerId, offer });
+          this.socket.emit('webrtc-offer', {
+            targetSocketId: peerId,
+            callerName: this.currentUser.name,
+            callerRole: this.currentRole,
+            offer
+          });
         }
       } catch(err) {
         console.warn('Error syncing tracks with peer:', peerId, err);
@@ -705,6 +733,7 @@ class ClassroomManager {
     if (this.currentRole === 'student') {
       this.startStudentProctoring();
     }
+    return this.localStream;
   }
 
   startStudentProctoring() {
