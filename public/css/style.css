@@ -514,7 +514,14 @@ body {
   top: 0;
   left: 0;
   z-index: 1;
+}
+
+#localVideoTile video {
   transform: scaleX(-1);
+}
+
+.remote-tile video {
+  transform: none;
 }
 
 /* Pinned / Spotlight Screen Sharing Mode */

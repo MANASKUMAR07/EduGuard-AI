@@ -1599,11 +1599,11 @@ io.on('connection', (socket) => {
   });
 
   // 4. Real WebRTC Signaling Mesh (Offers, Answers, ICE Candidates)
-  socket.on('webrtc-offer', ({ targetSocketId, offer }) => {
+  socket.on('webrtc-offer', ({ targetSocketId, callerName, callerRole, offer }) => {
     io.to(targetSocketId).emit('webrtc-offer', {
       callerSocketId: socket.id,
-      callerName: socket.userName,
-      callerRole: socket.userRole,
+      callerName: callerName || socket.userName || 'Participant',
+      callerRole: callerRole || socket.userRole || 'student',
       offer
     });
   });

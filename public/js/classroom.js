@@ -122,38 +122,29 @@ class ClassroomManager {
 
     // 6. A new peer joined the room -> initiate WebRTC Offer
     this.socket.on('user-connected', async ({ socketId, name, role }) => {
-      console.log(`User connected: ${name} (${socketId}). Creating WebRTC offer...`);
-      await this.createPeerConnection(socketId, name, role, true);
+      console.log(`📡 User connected: ${name} (${socketId}, ${role}). Creating WebRTC connection & offer...`);
+      try {
+        await this.createPeerConnection(socketId, name, role, true);
+      } catch (err) {
+        console.warn('Error creating peer connection for connected user:', err);
+      }
     });
 
     // 7. Receive WebRTC Offer -> Respond with Answer
     this.socket.on('webrtc-offer', async ({ callerSocketId, callerName, callerRole, offer }) => {
-      console.log(`Received WebRTC offer from ${callerName} (${callerSocketId})`);
-      const pc = await this.createPeerConnection(callerSocketId, callerName, callerRole, false);
-      await pc.setRemoteDescription(new RTCSessionDescription(offer));
+      console.log(`📥 Received WebRTC offer from ${callerName} (${callerSocketId})`);
+      try {
+        const pc = await this.createPeerConnection(callerSocketId, callerName, callerRole, false);
 
-      // Process any queued ICE candidates
-      if (pc._queuedCandidates && pc._queuedCandidates.length > 0) {
-        for (const c of pc._queuedCandidates) {
-          try { await pc.addIceCandidate(new RTCIceCandidate(c)); } catch(e){}
+        if (pc.signalingState !== 'stable') {
+          console.warn(`Peer connection signaling state is ${pc.signalingState}, rolling back before setting remote offer.`);
+          await Promise.all([
+            pc.setLocalDescription({ type: 'rollback' }).catch(() => {}),
+            pc.setRemoteDescription(new RTCSessionDescription(offer))
+          ]);
+        } else {
+          await pc.setRemoteDescription(new RTCSessionDescription(offer));
         }
-        pc._queuedCandidates = [];
-      }
-
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
-
-      this.socket.emit('webrtc-answer', {
-        targetSocketId: callerSocketId,
-        answer
-      });
-    });
-
-    // 8. Receive WebRTC Answer
-    this.socket.on('webrtc-answer', async ({ responderSocketId, answer }) => {
-      const pc = this.peerConnections[responderSocketId];
-      if (pc) {
-        await pc.setRemoteDescription(new RTCSessionDescription(answer));
 
         // Process any queued ICE candidates
         if (pc._queuedCandidates && pc._queuedCandidates.length > 0) {
@@ -161,6 +152,41 @@ class ClassroomManager {
             try { await pc.addIceCandidate(new RTCIceCandidate(c)); } catch(e){}
           }
           pc._queuedCandidates = [];
+        }
+
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+
+        this.socket.emit('webrtc-answer', {
+          targetSocketId: callerSocketId,
+          answer
+        });
+      } catch (err) {
+        console.warn('Error processing WebRTC offer:', err);
+      }
+    });
+
+    // 8. Receive WebRTC Answer
+    this.socket.on('webrtc-answer', async ({ responderSocketId, answer }) => {
+      console.log(`📥 Received WebRTC answer from ${responderSocketId}`);
+      const pc = this.peerConnections[responderSocketId];
+      if (pc) {
+        try {
+          if (pc.signalingState === 'have-local-offer') {
+            await pc.setRemoteDescription(new RTCSessionDescription(answer));
+          } else {
+            console.warn(`Ignoring answer in state: ${pc.signalingState}`);
+          }
+
+          // Process any queued ICE candidates
+          if (pc._queuedCandidates && pc._queuedCandidates.length > 0) {
+            for (const c of pc._queuedCandidates) {
+              try { await pc.addIceCandidate(new RTCIceCandidate(c)); } catch(e){}
+            }
+            pc._queuedCandidates = [];
+          }
+        } catch (err) {
+          console.warn('Error applying WebRTC answer:', err);
         }
       }
     });
@@ -429,42 +455,77 @@ class ClassroomManager {
   }
 
   async createPeerConnection(socketId, peerName, peerRole, isInitiator) {
-    const pc = new RTCPeerConnection(ICE_SERVERS);
-    this.peerConnections[socketId] = pc;
+    let pc = this.peerConnections[socketId];
 
+    if (!pc) {
+      pc = new RTCPeerConnection(ICE_SERVERS);
+      this.peerConnections[socketId] = pc;
+
+      // Add transceivers to guarantee audio & video negotiation
+      try {
+        pc.addTransceiver('audio', { direction: 'sendrecv' });
+        pc.addTransceiver('video', { direction: 'sendrecv' });
+      } catch (e) {
+        console.warn('Transceiver setup notice:', e);
+      }
+
+      pc.ontrack = (event) => {
+        console.log(`📡 Remote media track received (${event.track.kind}) from ${peerName} (${socketId})`);
+        let remoteStream = event.streams && event.streams[0];
+        if (!remoteStream) {
+          if (!this.remoteStreams[socketId]) {
+            this.remoteStreams[socketId] = new MediaStream();
+          }
+          this.remoteStreams[socketId].addTrack(event.track);
+          remoteStream = this.remoteStreams[socketId];
+        } else {
+          this.remoteStreams[socketId] = remoteStream;
+        }
+        this.renderRemoteVideoTile(socketId, peerName, peerRole, remoteStream);
+      };
+
+      pc.onicecandidate = (event) => {
+        if (event.candidate && this.socket) {
+          this.socket.emit('webrtc-ice-candidate', {
+            targetSocketId: socketId,
+            candidate: event.candidate
+          });
+        }
+      };
+
+      pc.onconnectionstatechange = () => {
+        console.log(`🔗 WebRTC connection with ${peerName} (${socketId}): ${pc.connectionState}`);
+        if (pc.connectionState === 'failed' && isInitiator) {
+          console.warn('WebRTC connection failed, attempting ICE restart...');
+          pc.createOffer({ iceRestart: true }).then(offer => {
+            pc.setLocalDescription(offer);
+            this.socket.emit('webrtc-offer', {
+              targetSocketId: socketId,
+              callerName: this.currentUser.name,
+              callerRole: this.currentRole,
+              offer
+            });
+          }).catch(err => console.warn('ICE restart error:', err));
+        }
+      };
+    }
+
+    // Attach local stream tracks to transceivers / senders
     if (this.localStream) {
+      const senders = pc.getSenders();
       this.localStream.getTracks().forEach(track => {
-        try {
-          pc.addTrack(track, this.localStream);
-        } catch (e) {
-          console.warn('Error adding track to peer connection:', e);
+        const sender = senders.find(s => s.track && s.track.kind === track.kind);
+        if (sender) {
+          sender.replaceTrack(track).catch(err => console.warn('replaceTrack warning:', err));
+        } else {
+          try {
+            pc.addTrack(track, this.localStream);
+          } catch (e) {
+            console.warn('addTrack warning:', e);
+          }
         }
       });
     }
-
-    pc.ontrack = (event) => {
-      console.log(`📡 Remote media track received (${event.track.kind}) from ${peerName} (${socketId})`);
-      let remoteStream = event.streams && event.streams[0];
-      if (!remoteStream) {
-        if (!this.remoteStreams[socketId]) {
-          this.remoteStreams[socketId] = new MediaStream();
-        }
-        this.remoteStreams[socketId].addTrack(event.track);
-        remoteStream = this.remoteStreams[socketId];
-      } else {
-        this.remoteStreams[socketId] = remoteStream;
-      }
-      this.renderRemoteVideoTile(socketId, peerName, peerRole, remoteStream);
-    };
-
-    pc.onicecandidate = (event) => {
-      if (event.candidate && this.socket) {
-        this.socket.emit('webrtc-ice-candidate', {
-          targetSocketId: socketId,
-          candidate: event.candidate
-        });
-      }
-    };
 
     if (isInitiator) {
       const offer = await pc.createOffer();
@@ -773,19 +834,39 @@ class ClassroomManager {
       if (videoEl.srcObject !== remoteStream) {
         videoEl.srcObject = remoteStream;
       }
-      const playPromise = videoEl.play();
-      if (playPromise !== undefined) {
-        playPromise.catch(e => {
-          console.warn('Remote video playback pending user gesture:', e);
-          const resumeAudioOnInteract = () => {
+
+      remoteStream.onaddtrack = () => {
+        if (videoEl.srcObject !== remoteStream) videoEl.srcObject = remoteStream;
+        videoEl.play().catch(() => {});
+      };
+
+      const startPlayback = async () => {
+        try {
+          await videoEl.play();
+        } catch (err) {
+          console.warn('Direct unmuted video play blocked, falling back to muted auto-play:', err);
+          videoEl.muted = true;
+          try {
+            await videoEl.play();
+          } catch (e2) {
+            console.warn('Muted video playback error:', e2);
+          }
+
+          // Unmute as soon as the user interacts with the page
+          const unmuteOnUserAction = () => {
+            videoEl.muted = false;
             videoEl.play().catch(() => {});
-            window.removeEventListener('click', resumeAudioOnInteract);
-            window.removeEventListener('keydown', resumeAudioOnInteract);
+            window.removeEventListener('click', unmuteOnUserAction);
+            window.removeEventListener('keydown', unmuteOnUserAction);
+            window.removeEventListener('touchstart', unmuteOnUserAction);
           };
-          window.addEventListener('click', resumeAudioOnInteract, { once: true });
-          window.addEventListener('keydown', resumeAudioOnInteract, { once: true });
-        });
-      }
+          window.addEventListener('click', unmuteOnUserAction, { once: true });
+          window.addEventListener('keydown', unmuteOnUserAction, { once: true });
+          window.addEventListener('touchstart', unmuteOnUserAction, { once: true });
+        }
+      };
+
+      startPlayback();
     }
   }
 
